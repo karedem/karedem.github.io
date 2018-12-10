@@ -6,56 +6,53 @@
 <body>
 	<p>请用系统自带浏览器打开</p>
 	<script>
-			//拿到参数 
-			function GetQueryString(name)
-			{
-				var reg = new RegExp("(^|&)"+ name +"=([^&]*)(&|$)");
-				var s = window.location.href;
-				var start = s.lastIndexOf("/");
-				var req = s.substr(start);
-				var paramStart = req.indexOf("?")+1;
-	    		if (paramStart < 1) { //
-	    			paramStart = req.indexOf("#")+1;
-	    		}
-	    		var r = req.substr(paramStart).match(reg);//
-				//search,查询？后面的参数，并匹配正则
-				if(r!=null)
-					return  unescape(r[2]); 
-				return null;
-			}
-
-			function openApp(param) {
-				//判断手机类型 打开页面
-				let ua = navigator.userAgent.toLowerCase();
-				console.log(ua);
-				if(this.isWeixinBrowser(ua)){
-            		$('.layer').show();//遮罩层（使用外部浏览器打开，此处样式自行设定）
-            	}else{
-            		if(this.isAndroid(ua)){
-	                	//android
-	                	window.location = 'uniontokenprotocol://keyou.cn?seedFile=' + param;
-	                	//window.open('uniontokenprotocol://keyou.cn?seedFile=' + param);
-	                	// let loadDateTime = Date.now();
-	                	// let turn = setTimeout(function(){
-	                 //    let timeOutDateTime = Date.now();
-	                 //    	if ((timeOutDateTime - loadDateTime) < 1000 ){
-	                 //        	window.location = 'https://fir.im/d7bc?utm_source=fir&utm_medium=qr&release_id=5b0bd16e959d6952471473bd'
-	                 //    	}
-	                	// },600);
-						
-	                }else{
-                		//ios
-                		window.location = 'uniontokenprotocol://keyou.cn?seedFile=' + param;
-	                	// let loadDateTime = Date.now();
-	                	// let turn = setTimeout(function(){
-	                 //    	let timeOutDateTime = Date.now();
-	                 //    	if ((timeOutDateTime - loadDateTime) < 1000 ){
-	                 //        window.location = 'itms-apps://itunes.apple.com/WebObjects/MZStore.woa/wa/viewSoftware?id=1243476718';
-	                 //    	}
-	                	// },600);
-	                }
-	            }
-				
+		//拿到参数 
+		function GetQueryString(name)
+		{
+			var reg = new RegExp("(^|&)"+ name +"=([^&]*)(&|$)");
+			var s = window.location.href;
+			var start = s.lastIndexOf("/");
+			var req = s.substr(start);
+			var paramStart = req.indexOf("?")+1;
+	    	if (paramStart < 1) { //
+	    		paramStart = req.indexOf("#")+1;
+	    	}
+	    	var r = req.substr(paramStart).match(reg);//
+			//search,查询？后面的参数，并匹配正则
+			if(r!=null)
+				return  unescape(r[2]); 
+			return null;
+		}
+		function openApp(param) {
+			//判断手机类型 打开页面
+			let ua = navigator.userAgent.toLowerCase();
+			console.log(ua);
+			if(this.isWeixinBrowser(ua)){
+            			$('.layer').show();//遮罩层（使用外部浏览器打开，此处样式自行设定）
+            		}else{
+            			if(this.isAndroid(ua)){
+					//android
+					window.location = 'uniontokenprotocol://keyou.cn?seedFile=' + param;
+					//window.open('uniontokenprotocol://keyou.cn?seedFile=' + param);
+					// let loadDateTime = Date.now();
+					// let turn = setTimeout(function(){
+					 //    let timeOutDateTime = Date.now();
+					//    	if ((timeOutDateTime - loadDateTime) < 1000 ){
+					//        	window.location = 'https://fir.im/d7bc?utm_source=fir&utm_medium=qr&release_id=5b0bd16e959d6952471473bd'
+					//    	}
+					// },600);			
+	                	}else{
+					//ios
+					window.location = 'uniontokenprotocol://keyou.cn?seedFile=' + param;
+					// let loadDateTime = Date.now();
+					// let turn = setTimeout(function(){
+				 //    	let timeOutDateTime = Date.now();
+				 //    	if ((timeOutDateTime - loadDateTime) < 1000 ){
+				 //        window.location = 'itms-apps://itunes.apple.com/WebObjects/MZStore.woa/wa/viewSoftware?id=1243476718';
+				 //    	}
+					// },600);
+	                	}
+	            	}	
 	        }
 	        function isWeixinBrowser(ua) {
 	        	return (/micromessenger/.test(ua)) ? true : false;
@@ -90,7 +87,7 @@
 	        	}
 	        	return str;
 	        }
-			var time =Date.parse(new Date());
+		var time =Date.parse(new Date());
 	        var param = GetQueryString("seedFile") + "&ran=" + time;
 	        if (IsPC()) {
 	        	var p = document.getElementById("click");
@@ -98,8 +95,7 @@
       			p.click();
 	        }else{
 	        	openApp(param);
-	        }
-			
+	        }	
 	    </script>
 	</body>
-	</html>
+</html>
