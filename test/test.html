@@ -1,0 +1,146 @@
+
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>SM2 Simple</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<script src="js/union-sm2-mini-1.0.js"></script>
+
+<script language="JavaScript" type="text/javascript">
+    /*
+     * 生成公私钥对
+     */
+	function doGenerate() {
+		var f1 = document.form1;
+		var curve = 'SM2';
+		var ec = new KJUR.crypto.ECDSA({
+			"curve" : curve
+		});
+		var keypair = ec.generateKeyPairHex();
+
+		f1.prvkey.value = keypair.ecprvhex;
+		var publickey = keypair.ecpubhex;
+		if (publickey.length > 64 * 2) {
+			publickey = publickey.substr(publickey.length - 64 * 2);
+		}
+		f1.pubkeyX.value = publickey.substr(0, 64);
+		f1.pubkeyY.value = publickey.substr(64);
+	}
+
+	/*
+     * 加密数据
+     */
+	function doEncrypt() {
+		var f1 = document.form1;
+		var curve = 'SM2';
+		var msg = f1.enInput.value;
+		var msgData = CryptoJS.enc.Utf8.parse(msg);
+		var xHex = f1.pubkeyX.value;
+		var yHex = f1.pubkeyY.value;
+
+		var cipherMode = SM2CipherMode.C1C3C2;
+
+		var cipher = new SM2Cipher(cipherMode);
+		var userKey = cipher.CreatePoint(xHex, yHex);
+
+		msgData = cipher.GetWords(msgData.toString());
+
+		var encryptData = cipher.Encrypt(userKey, msgData);
+
+		f1.enResult.value = encryptData.toUpperCase();
+		
+		f1.deInput.value = encryptData.toUpperCase();
+	}
+
+	/*
+     * 解密数据
+     */
+	function doDecrypt() {
+		var f1 = document.form1;
+		var prvkey = f1.prvkey.value;
+		var encryptData = f1.deInput.value.toLowerCase();
+		var privateKey = new BigInteger(prvkey, 16);
+
+		var cipherMode = SM2CipherMode.C1C3C2;
+
+		var cipher = new SM2Cipher(cipherMode);
+		var data = cipher.Decrypt(privateKey, encryptData);
+		f1.deResult.value = data;
+		
+		data ? f1.enInput.value = data : alert('fail!');
+	}
+
+	function crypt() {
+		var f1 = document.form1;
+		var msg = f1.msg1.value;
+		var msgData = CryptoJS.enc.Utf8.parse(msg);
+		var xHex = f1.pubkeyX.value;
+		var yHex = f1.pubkeyY.value;
+		var cipherMode = SM2CipherMode.C1C3C2;
+		var cipher = new SM2Cipher(cipherMode);
+		var userKey = cipher.CreatePoint(xHex, yHex);
+		msgData = cipher.GetWords(msgData.toString());
+
+		var prvkey = f1.prvkey.value;
+		var privateKey = new BigInteger(prvkey, 16);
+
+		for (var i = 0; i < 1000; i++) {
+			var encryptData = cipher.Encrypt(userKey, msgData);
+			var decryptData = cipher.Decrypt(privateKey, encryptData);
+			if (decryptData != msg) {
+				f1.sigval1.value = encryptData;
+				alert('fail!');
+				break;
+			}
+		}
+
+		alert('finish!');
+	}
+</script>
+</head>
+<body>
+	<form name="form1">
+		<h4>Key</h4>
+		<input type="button" value="生成密钥对"
+			onClick="doGenerate();" /><br />
+		<p>
+			私钥 (hex): <input type="text" name="prvkey"
+				value="A172AE7949EFFE714928CE30BE6B8A50B9DAFE24B5AE8CF88D7885E5FFDB8FC2"
+				size="100" /><br /> 公钥X(hex): <input type="text"
+				name="pubkeyX"
+				value="F255FD6F42FE4DDE4E5D99ED4A422BDF81FE9875FEAC74F8F3C2C2B50F154191"
+				size="100" /><br /> 公钥Y(hex): <input type="text"
+				name="pubkeyY"
+				value="FCBFF00451AD87CA65FC7226272879439527BB1F37C8B1A4553A9286898363EB"
+				size="100" /><br />
+		</p>
+
+		<h4>Encrypt:</h4>
+		<input type="text" name="enInput" value="12345678" size="100" /><br />
+		<input type="button" value="加密" onClick="doEncrypt();" /><br />
+		
+		<p>
+		<h4>Result:</h4>
+		加密结果: <input type="text" id="enResult" name="enResult"
+			value=""
+			size="100" /><br />
+		</p>
+
+		<h4>Decrypt:</h4>
+		<input type="text" name="deInput" value="" size="100" /><br />
+		<input type="button" value="解密" onClick="doDecrypt();" /> <input
+			type="reset" value="重置" />
+
+		<p>
+		<h4>Result:</h4>
+		解密结果: <input type="text" id="deResult" name="deResult"
+			value=""
+			size="100" /><br />
+		</p>
+
+		<!--<input type="button" id="cryptBtn" value="测试1000次" onClick="crypt();" />-->
+	</form>
+</body>
+</html>
