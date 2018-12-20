@@ -6,8 +6,58 @@
 <title>SM2 Simple</title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 
-<script src="js/union-sm2-mini-1.0.js"></script>
+<script src="js/union-sm2-1.0.js"></script>
 
+
+</head>
+<body>
+	<form name="form1">
+		<h4>Key</h4>
+		<input type="button" value="生成密钥对"
+			onClick="doGenerate();" /><br />
+		<p>
+			私钥 (hex): <input type="text" name="prvkey"
+				value="A172AE7949EFFE714928CE30BE6B8A50B9DAFE24B5AE8CF88D7885E5FFDB8FC2"
+				size="100" /><br /> 公钥X(hex): <input type="text"
+				name="pubkeyX"
+				value="F255FD6F42FE4DDE4E5D99ED4A422BDF81FE9875FEAC74F8F3C2C2B50F154191"
+				size="100" /><br /> 公钥Y(hex): <input type="text"
+				name="pubkeyY"
+				value="FCBFF00451AD87CA65FC7226272879439527BB1F37C8B1A4553A9286898363EB"
+				size="100" /><br />
+		</p>
+
+		<h4>Encrypt:</h4>
+		<input type="text" name="enInput" value="12345678" size="100" /><br />
+		<input type="button" value="加密" onClick="doEncrypt();" /><br />
+		
+		<p>
+		<h4>Result:</h4>
+		加密结果: <input type="text" id="enResult" name="enResult"
+			value=""
+			size="100" /><br />
+		</p>
+
+		<h4>Decrypt:</h4>
+		<input type="text" name="deInput" value="" size="100" /><br />
+		<input type="button" value="解密" onClick="doDecrypt();" /> <input
+			type="reset" value="重置" />
+
+		<p>
+		<h4>Result:</h4>
+		解密结果: <input type="text" id="deResult" name="deResult"
+			value=""
+			size="100" /><br />
+		</p>
+		
+		<p>
+		<h4>process test</h4>
+		 <textarea id="logger" readonly="true" placeholder="" cols="70" rows="40">
+            </textarea><br />
+		</p>
+		<!--<input type="button" id="cryptBtn" value="测试1000次" onClick="crypt();" />-->
+	</form>
+</body>
 <script language="JavaScript" type="text/javascript">
     /*
      * 生成公私钥对
@@ -98,49 +148,76 @@
 
 		alert('finish!');
 	}
-</script>
-</head>
-<body>
-	<form name="form1">
-		<h4>Key</h4>
-		<input type="button" value="生成密钥对"
-			onClick="doGenerate();" /><br />
-		<p>
-			私钥 (hex): <input type="text" name="prvkey"
-				value="A172AE7949EFFE714928CE30BE6B8A50B9DAFE24B5AE8CF88D7885E5FFDB8FC2"
-				size="100" /><br /> 公钥X(hex): <input type="text"
-				name="pubkeyX"
-				value="F255FD6F42FE4DDE4E5D99ED4A422BDF81FE9875FEAC74F8F3C2C2B50F154191"
-				size="100" /><br /> 公钥Y(hex): <input type="text"
-				name="pubkeyY"
-				value="FCBFF00451AD87CA65FC7226272879439527BB1F37C8B1A4553A9286898363EB"
-				size="100" /><br />
-		</p>
 
-		<h4>Encrypt:</h4>
-		<input type="text" name="enInput" value="12345678" size="100" /><br />
-		<input type="button" value="加密" onClick="doEncrypt();" /><br />
+	/**
+	 * [processTest description]
+	 * @return {[type]} [description]
+	 */
+	function processTest() {
+		var logger = document.getElementById('logger');
+		var testHexStr = "31323334353637383132333435363738";
+		var testBs = [10, 11, 12, 13, 14, 15];
+		var testPoint1Part = "3132333435363738313233343536373831323334353637383132333435363738";
+		var testPoint2Part = "3132333435363738313233343536373831323334353637383132333435363738";
+		var testVk = "3132333435363738313233343536373831323334353637383132333435363738";
+		var bigIntVK = new BigInteger(testVk, 16);
+		var dataLen = 8;
+
+
+		var cipherMode = SM2CipherMode.C1C3C2;
+		var cipher = new SM2Cipher(cipherMode);
+
+		//test GetWords()
+		logger.value += "test GetWords() \n";
+		var words = cipher.GetWords(testHexStr);
+		logger.value += words + "\n";
+
+		//test GetHex()
+		logger.value += "test GetHex() \n";
+		var hex = cipher.GetHex(testBs);
+		logger.value += (hex + "").toUpperCase() + "\n";
+
+		//test CreatePoint()
+		logger.value += "test CreatePoint() \n";
+		var point = cipher.CreatePoint(testPoint1Part, testPoint2Part);
+		logger.value += point + "\n";
+
+		//test RandomKeyPair()
+		logger.value += "test RandomKeyPair() \n";
+		var ec = new KJUR.crypto.ECDSA({
+			"curve" : "sm2"
+		});
+		var keypair = ec.generateKeyPairHex();
+		logger.value += keypair.ecprvhex.toUpperCase() + "  \n"  + keypair.ecpubhex.toUpperCase() + "\n";
+
+		//this.InitDecipher(privateKey, c1);
+		logger.value += "test multiply() \n";
+		var p2 = point.multiply(bigIntVK);
+		logger.value += p2 + "\n";
+
+		//this.DecryptBlock(data);
+		//
+		//prepare for KDF()
+		cipher.p2 = point;
+
+		//
+		//test KDF()
+		logger.value += "test KDF() \n";
+		var kdf = cipher.KDF(dataLen);
+		logger.value += kdf + "\n";
 		
-		<p>
-		<h4>Result:</h4>
-		加密结果: <input type="text" id="enResult" name="enResult"
-			value=""
-			size="100" /><br />
-		</p>
+		cipher.p2 = null;
+		//this.Dofinal(c3_);
+		//test SM3()
+		logger.value += "test SM3() \n";
+		var sm3 = new SM3Digest();
+		sm3.Update(testBs);
+		var hashData = new Array(32);
+		sm3.DoFinal(hashData, 0);
+		logger.value += hashData + "\n";
 
-		<h4>Decrypt:</h4>
-		<input type="text" name="deInput" value="" size="100" /><br />
-		<input type="button" value="解密" onClick="doDecrypt();" /> <input
-			type="reset" value="重置" />
+	}
 
-		<p>
-		<h4>Result:</h4>
-		解密结果: <input type="text" id="deResult" name="deResult"
-			value=""
-			size="100" /><br />
-		</p>
-
-		<!--<input type="button" id="cryptBtn" value="测试1000次" onClick="crypt();" />-->
-	</form>
-</body>
+	processTest();
+</script>
 </html>
