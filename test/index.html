@@ -200,9 +200,10 @@
 		//prepare for KDF()
 		cipher.p2 = point;
 
+		cipher.setLogger(logger);
 		//
 		//test KDF()
-		logger.value += "test KDF() \n";
+		//logger.value += "test KDF() \n";
 		var kdf = cipher.KDF(dataLen);
 		logger.value += kdf + "\n";
 		
@@ -215,6 +216,8 @@
 		var hashData = new Array(32);
 		sm3.DoFinal(hashData, 0);
 		logger.value += hashData + "\n";
+
+		 
 
 	}
 

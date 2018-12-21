@@ -7233,6 +7233,7 @@ function SM2Cipher(cipherMode) {
 	this.sm3c3 = null;
 	this.key = new Array(32);
 	this.keyOff = 0;
+    this.logger = null;
 	if (typeof (cipherMode) != 'undefined') {
 		this.cipherMode = cipherMode
 	} else {
@@ -7240,6 +7241,10 @@ function SM2Cipher(cipherMode) {
 	}
 }
 SM2Cipher.prototype = {
+    setLogger : function(log) {
+        this.logger = log;
+    },
+
 	Reset : function() {
 		this.sm3keybase = new SM3Digest();
 		this.sm3c3 = new SM3Digest();
@@ -7272,23 +7277,41 @@ SM2Cipher.prototype = {
 	},
 	// add by longwx 2016.01.05
 	KDF : function(len) {
+        logger.value += "-----------start KDF()--------------- \n";
+
 		var t = new Array(len);
 		var sm3 = new SM3Digest();
 		var sm3Ret = new Array(32);
 		var ct = 1;
 		var value = len / 32;
+
+        logger.value += "var value = len / 32    -------" + value + "\n";
 		var remainder = len % 32;
+        logger.value += "var remainder = len % 32    -------" + remainder + "\n";
 		//mod by huangzh 2016-4-14 p2x,p2y小于64位，前面需要补零
 		var p2x = this.p2.getX().toBigInteger().toRadix(16);
+
+        logger.value += "p2x before Zorepadding    -------" + p2x + "\n";
+
 		while(p2x.length<64){
 			p2x = "0"+p2x;
 		}
+
+        logger.value += "p2x after Zorepadding    -------" + p2x + "\n";
+
 		var xWords = this.GetWords(p2x);
 		var p2y = this.p2.getY().toBigInteger().toRadix(16);
+
+        logger.value += "p2y before Zorepadding    -------" + p2y + "\n";
 		while(p2y.length<64){
 			p2y = "0"+p2y;
 		}
+        logger.value += "p2y after Zorepadding    -------" + p2y + "\n";
+
 		var yWords = this.GetWords(p2y);
+
+        logger.value += "xWords    -------" + xWords + "\n";
+        logger.value += "yWords    -------" + xWords + "\n";
 		var offset = 0;
 		for (var i = 0; i < value; i++) {
 			sm3.BlockUpdate(xWords, 0, xWords.length);
@@ -7301,6 +7324,9 @@ SM2Cipher.prototype = {
 			offset += 32;
 			ct++;
 		}
+        logger.value += "ct value  ---------" + ct + "\n";
+        logger.value += "t value after sm3    -------" + t + "\n";
+
 		if (remainder != 0) {
 			sm3.BlockUpdate(xWords, 0, xWords.length);
 			sm3.BlockUpdate(yWords, 0, yWords.length);
@@ -7310,6 +7336,8 @@ SM2Cipher.prototype = {
 			sm3.Update(ct & 0x00ff);
 			sm3.DoFinal(sm3Ret, 0);
 		}
+
+        logger.value += "sm3Ret value after sm3    -------" + sm3Ret + "\n";
 		Array.Copy(sm3Ret, 0, t, offset, remainder);
 		
 		for(var i = 0; i < t.length; i++) {
