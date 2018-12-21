@@ -6224,6 +6224,7 @@ KJUR.crypto.ECDSA.biRSSigToASN1Sig = function(biR, biS) {
 	C.HmacSM3 = Hasher._createHmacHelper(SM3)
 }());
 function SM3Digest() {
+    this.logger = null;
 	this.BYTE_LENGTH = 64;
 	this.xBuf = new Array();
 	this.xBufOff = 0;
@@ -6251,6 +6252,9 @@ SM3Digest.prototype = {
 		this.xBuf = new Array(4);
 		this.Reset()
 	},
+    setLogger : function(logger){
+        this.logger = logger;
+    },
 	InitDigest : function(t) {
 		this.xBuf = new Array(t.xBuf.length);
 		Array.Copy(t.xBuf, 0, this.xBuf, 0, t.xBuf.length);
@@ -6531,7 +6535,7 @@ Array.Copy = function(sourceArray, sourceIndex, destinationArray,
 	}
 };
 window.Int32 = {
-	minValue : -parseInt('10000000000000000000000000000000', 2),
+	minValue : parseInt('10000000000000000000000000000000', 2),
 	maxValue : parseInt('01111111111111111111111111111111', 2),
 	parse : function(n) {
 		if (n < this.minValue) {

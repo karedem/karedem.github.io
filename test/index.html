@@ -7,7 +7,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 
 <script src="js/union-sm2-1.0.js"></script>
-
+<script src="js/keyou-crypto-min.js"></script>
 
 </head>
 <body>
@@ -157,59 +157,15 @@
 		var logger = document.getElementById('logger');
 		var testHexStr = "31323334353637383132333435363738";
 		var testBs = [10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17, 10, 11, 12, 13, 14, 15, 16, 17];
-		var testPoint1Part = "3132333435363738313233343536373831323334353637383132333435363738";
-		var testPoint2Part = "3132333435363738313233343536373831323334353637383132333435363738";
-		var testVk = "3132333435363738313233343536373831323334353637383132333435363738";
-		var bigIntVK = new BigInteger(testVk, 16);
-		var dataLen = 8;
 
+/*		logger.value += "test SM3() use BlockUpdate \n";
+		var sm3 = new SM3Digest();
+		sm3.BlockUpdate(testBs, 0 , testBs.length);
+		sm3.BlockUpdate(testBs, 0 , testBs.length);
+		var hashData = new Array(32);
+		sm3.DoFinal(hashData, 0);
+		logger.value += hashData + "\n";*/
 
-		var cipherMode = SM2CipherMode.C1C3C2;
-		var cipher = new SM2Cipher(cipherMode);
-
-		//test GetWords()
-		//logger.value += "test GetWords() \n";
-		var words = cipher.GetWords(testHexStr);
-		//logger.value += words + "\n";
-
-		//test GetHex()
-		//logger.value += "test GetHex() \n";
-		var hex = cipher.GetHex(testBs);
-		//logger.value += (hex + "").toUpperCase() + "\n";
-
-		//test CreatePoint()
-		//logger.value += "test CreatePoint() \n";
-		var point = cipher.CreatePoint(testPoint1Part, testPoint2Part);
-		//logger.value += point + "\n";
-
-		//test RandomKeyPair()
-		//logger.value += "test RandomKeyPair() \n";
-		var ec = new KJUR.crypto.ECDSA({
-			"curve" : "sm2"
-		});
-		var keypair = ec.generateKeyPairHex();
-		//logger.value += keypair.ecprvhex.toUpperCase() + "  \n"  + keypair.ecpubhex.toUpperCase() + "\n";
-
-		//this.InitDecipher(privateKey, c1);
-		//logger.value += "test multiply() \n";
-		var p2 = point.multiply(bigIntVK);
-		//logger.value += p2 + "\n";
-
-		//this.DecryptBlock(data);
-		//
-		//prepare for KDF()
-		cipher.p2 = point;
-
-		cipher.setLogger(logger);
-		//
-		//test KDF()
-		//logger.value += "test KDF() \n";
-		var kdf = cipher.KDF(dataLen);
-		//logger.value += kdf + "\n";
-		
-		cipher.p2 = null;
-		//this.Dofinal(c3_);
-		//test SM3()
 		logger.value += "test SM3() use BlockUpdate \n";
 		var sm3 = new SM3Digest();
 		sm3.BlockUpdate(testBs, 0 , testBs.length);
@@ -218,17 +174,18 @@
 		sm3.DoFinal(hashData, 0);
 		logger.value += hashData + "\n";
 
-		logger.value += "test SM3() use Update \n";
-		var sm33 = new SM3Digest();
-		for (var i = 0; i < testBs.length; i++) {
-			sm33.Update(testBs[i]);
+		var SM3 = KeyouCryptography.algorithm.SM3;
+
+		var data = new Array(0);
+		for (var i = testBs.length - 1; i >= 0; i--) {
+			data.unshift(testBs[i]);
 		}
-		for (var i = 0; i < testBs.length; i++) {
-			sm33.Update(testBs[i]);
+		for (var i = testBs.length - 1; i >= 0; i--) {
+			data.unshift(testBs[i]);
 		}
-		var hashData = new Array(32);
-		sm33.DoFinal(hashData, 0);
-		logger.value += hashData + "\n";
+		logger.value +=  "\n" + KeyouCryptography.util.Hex.encode(data) + "\n";
+		var sm3hash = SM3.digest(data)
+		logger.value += sm3hash + "\n";
 	}
 
 	processTest();
