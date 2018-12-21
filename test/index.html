@@ -156,7 +156,7 @@
 	function processTest() {
 		var logger = document.getElementById('logger');
 		var testHexStr = "31323334353637383132333435363738";
-		var testBs = [10, 11, 12, 13, 14, 15];
+		var testBs = [10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17, 10, 11, 12, 13, 14, 15, 16, 17];
 		var testPoint1Part = "3132333435363738313233343536373831323334353637383132333435363738";
 		var testPoint2Part = "3132333435363738313233343536373831323334353637383132333435363738";
 		var testVk = "3132333435363738313233343536373831323334353637383132333435363738";
@@ -212,13 +212,11 @@
 		//test SM3()
 		logger.value += "test SM3() use BlockUpdate \n";
 		var sm3 = new SM3Digest();
-		sm3.BlockUpdate(testBs, 0, testBs.length);
+		sm3.BlockUpdate(testBs, 0 , testBs.length);
+		sm3.BlockUpdate(testBs, 0 , testBs.length);
 		var hashData = new Array(32);
 		sm3.DoFinal(hashData, 0);
 		logger.value += hashData + "\n";
-
-		 
-
 	}
 
 	processTest();

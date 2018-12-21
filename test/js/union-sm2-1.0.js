@@ -7292,8 +7292,6 @@ SM2Cipher.prototype = {
 		//mod by huangzh 2016-4-14 p2x,p2y小于64位，前面需要补零
 		var p2x = this.p2.getX().toBigInteger().toRadix(16);
 
-        logger.value += "p2x before Zorepadding    -------" + p2x + "\n";
-
 		while(p2x.length<64){
 			p2x = "0"+p2x;
 		}
@@ -7303,7 +7301,6 @@ SM2Cipher.prototype = {
 		var xWords = this.GetWords(p2x);
 		var p2y = this.p2.getY().toBigInteger().toRadix(16);
 
-        logger.value += "p2y before Zorepadding    -------" + p2y + "\n";
 		while(p2y.length<64){
 			p2y = "0"+p2y;
 		}
@@ -7311,33 +7308,31 @@ SM2Cipher.prototype = {
 
 		var yWords = this.GetWords(p2y);
 
-        logger.value += "xWords    -------" + xWords + "\n";
-        logger.value += "yWords    -------" + xWords + "\n";
+        logger.value += "xWords    -------\n" + xWords + "\n";
+        logger.value += "yWords    -------\n" + yWords + "\n";
 		var offset = 0;
 		for (var i = 0; i < value; i++) {
 			sm3.BlockUpdate(xWords, 0, xWords.length);
 			sm3.BlockUpdate(yWords, 0, yWords.length);
 			sm3.Update(ct >> 24 & 0x00ff);
             testCt = ct >> 24 & 0x00ff;
-            logger.value += "ct >> 24 & 0x00ff  ---------" + testCt + "\n";
+            logger.value += "ct >> 24 & 0x00ff  ---------\n" + testCt + "\n";
 			sm3.Update(ct >> 16 & 0x00ff);
             testCt = ct >> 16 & 0x00ff;
-            logger.value += "ct >> 16 & 0x00ff  ---------" + testCt + "\n";
+            logger.value += "ct >> 16 & 0x00ff  ---------\n" + testCt + "\n";
 			sm3.Update(ct >> 8 & 0x00ff);
             testCt = ct >> 8 & 0x00ff;
-            logger.value += "ct >> 8 & 0x00ff  ---------" + testCt + "\n";
+            logger.value += "ct >> 8 & 0x00ff  ---------\n" + testCt + "\n";
 			sm3.Update(ct & 0x00ff);
             testCt = ct & 0x00ff;
-            logger.value += "ct & 0x00ff  ---------" + testCt + "\n";
+            logger.value += "ct & 0x00ff  ---------\n" + testCt + "\n";
 			sm3.DoFinal(t, offset);
 			offset += 32;
 			ct++;
 		}
-        
-        
 
-        logger.value += "ct value  ---------" + ct + "\n";
-        logger.value += "t value after sm3    -------" + t + "\n";
+        logger.value += "ct value  ---------\n" + ct + "\n";
+        logger.value += "t value after sm3    -------\n" + t + "\n";
 
 		if (remainder != 0) {
 			sm3.BlockUpdate(xWords, 0, xWords.length);
