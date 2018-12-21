@@ -170,17 +170,17 @@
 		//test GetWords()
 		logger.value += "test GetWords() \n";
 		var words = cipher.GetWords(testHexStr);
-		logger.value += words + "\n";
+		//logger.value += words + "\n";
 
 		//test GetHex()
 		logger.value += "test GetHex() \n";
 		var hex = cipher.GetHex(testBs);
-		logger.value += (hex + "").toUpperCase() + "\n";
+		//logger.value += (hex + "").toUpperCase() + "\n";
 
 		//test CreatePoint()
 		logger.value += "test CreatePoint() \n";
 		var point = cipher.CreatePoint(testPoint1Part, testPoint2Part);
-		logger.value += point + "\n";
+		//logger.value += point + "\n";
 
 		//test RandomKeyPair()
 		logger.value += "test RandomKeyPair() \n";
@@ -188,12 +188,12 @@
 			"curve" : "sm2"
 		});
 		var keypair = ec.generateKeyPairHex();
-		logger.value += keypair.ecprvhex.toUpperCase() + "  \n"  + keypair.ecpubhex.toUpperCase() + "\n";
+		//logger.value += keypair.ecprvhex.toUpperCase() + "  \n"  + keypair.ecpubhex.toUpperCase() + "\n";
 
 		//this.InitDecipher(privateKey, c1);
 		logger.value += "test multiply() \n";
 		var p2 = point.multiply(bigIntVK);
-		logger.value += p2 + "\n";
+		//logger.value += p2 + "\n";
 
 		//this.DecryptBlock(data);
 		//
@@ -205,7 +205,7 @@
 		//test KDF()
 		//logger.value += "test KDF() \n";
 		var kdf = cipher.KDF(dataLen);
-		logger.value += kdf + "\n";
+		//logger.value += kdf + "\n";
 		
 		cipher.p2 = null;
 		//this.Dofinal(c3_);
@@ -215,7 +215,7 @@
 		sm3.Update(testBs);
 		var hashData = new Array(32);
 		sm3.DoFinal(hashData, 0);
-		logger.value += hashData + "\n";
+		//logger.value += hashData + "\n";
 
 		 
 

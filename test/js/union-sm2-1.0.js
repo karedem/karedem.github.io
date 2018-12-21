@@ -7284,6 +7284,7 @@ SM2Cipher.prototype = {
 		var sm3Ret = new Array(32);
 		var ct = 1;
 		var value = len / 32;
+        var testCt;
 
         logger.value += "var value = len / 32    -------" + value + "\n";
 		var remainder = len % 32;
@@ -7317,13 +7318,24 @@ SM2Cipher.prototype = {
 			sm3.BlockUpdate(xWords, 0, xWords.length);
 			sm3.BlockUpdate(yWords, 0, yWords.length);
 			sm3.Update(ct >> 24 & 0x00ff);
+            testCt = ct >> 24 & 0x00ff;
+            logger.value += "ct >> 24 & 0x00ff  ---------" + testCt + "\n";
 			sm3.Update(ct >> 16 & 0x00ff);
+            testCt = ct >> 16 & 0x00ff;
+            logger.value += "ct >> 16 & 0x00ff  ---------" + testCt + "\n";
 			sm3.Update(ct >> 8 & 0x00ff);
+            testCt = ct >> 8 & 0x00ff;
+            logger.value += "ct >> 8 & 0x00ff  ---------" + testCt + "\n";
 			sm3.Update(ct & 0x00ff);
+            testCt = ct & 0x00ff;
+            logger.value += "ct & 0x00ff  ---------" + testCt + "\n";
 			sm3.DoFinal(t, offset);
 			offset += 32;
 			ct++;
 		}
+        
+        
+
         logger.value += "ct value  ---------" + ct + "\n";
         logger.value += "t value after sm3    -------" + t + "\n";
 
