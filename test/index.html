@@ -210,12 +210,12 @@
 		cipher.p2 = null;
 		//this.Dofinal(c3_);
 		//test SM3()
-		logger.value += "test SM3() \n";
+		logger.value += "test SM3() use BlockUpdate \n";
 		var sm3 = new SM3Digest();
-		sm3.Update(testBs);
+		sm3.BlockUpdate(testBs, 0, testBs.length);
 		var hashData = new Array(32);
 		sm3.DoFinal(hashData, 0);
-		//logger.value += hashData + "\n";
+		logger.value += hashData + "\n";
 
 		 
 
