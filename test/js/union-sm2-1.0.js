@@ -7326,6 +7326,7 @@ SM2Cipher.prototype = {
 			sm3.Update(ct & 0x00ff);
             testCt = ct & 0x00ff;
             logger.value += "ct & 0x00ff  ---------\n" + testCt + "\n";
+            logger.value += "offset  ---------\n" + offset + "\n";
 			sm3.DoFinal(t, offset);
 			offset += 32;
 			ct++;
