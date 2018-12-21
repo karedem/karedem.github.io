@@ -8,7 +8,6 @@
 
 <script src="js/union-sm2-1.0.js"></script>
 <script src="js/keyou-crypto-min.js"></script>
-
 </head>
 <body>
 	<form name="form1">
@@ -158,14 +157,6 @@
 		var testHexStr = "31323334353637383132333435363738";
 		var testBs = [10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17, 10, 11, 12, 13, 14, 15, 16, 17];
 
-/*		logger.value += "test SM3() use BlockUpdate \n";
-		var sm3 = new SM3Digest();
-		sm3.BlockUpdate(testBs, 0 , testBs.length);
-		sm3.BlockUpdate(testBs, 0 , testBs.length);
-		var hashData = new Array(32);
-		sm3.DoFinal(hashData, 0);
-		logger.value += hashData + "\n";*/
-
 		logger.value += "test SM3() use BlockUpdate \n";
 		var sm3 = new SM3Digest();
 		sm3.BlockUpdate(testBs, 0 , testBs.length);
@@ -174,8 +165,21 @@
 		sm3.DoFinal(hashData, 0);
 		logger.value += hashData + "\n";
 
-		var SM3 = KeyouCryptography.algorithm.SM3;
+		logger.value += "test SM3() use Update \n";
+		var sm3 = new SM3Digest();
+		for (var i = 0; i < testBs.length; i++) {
+			sm3.Update(testBs[i]);
+		}
+		for (var i = 0; i < testBs.length; i++) {
+			sm3.Update(testBs[i]);
+		}
+		
+		var hashData = new Array(32);
+		sm3.DoFinal(hashData, 0);
+		logger.value += hashData + "\n";
 
+		var SM3 = KeyouCryptography.algorithm.SM3;
+		logger.value += "test SM3() use new SM3 \n";
 		var data = new Array(0);
 		for (var i = testBs.length - 1; i >= 0; i--) {
 			data.unshift(testBs[i]);
