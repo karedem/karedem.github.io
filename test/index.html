@@ -12,7 +12,7 @@
 </head>
 <body>
 	<form name="form1">
-		<h4>Key</h4>
+		<!-- <h4>Key</h4>
 		<input type="button" value="生成密钥对"
 			onClick="doGenerate();" /><br />
 		<p>
@@ -48,7 +48,7 @@
 		解密结果: <input type="text" id="deResult" name="deResult"
 			value=""
 			size="100" /><br />
-		</p>
+		</p> -->
 		
 		<p>
 		<h4>process test</h4>
@@ -168,22 +168,22 @@
 		var cipher = new SM2Cipher(cipherMode);
 
 		//test GetWords()
-		logger.value += "test GetWords() \n";
+		//logger.value += "test GetWords() \n";
 		var words = cipher.GetWords(testHexStr);
 		//logger.value += words + "\n";
 
 		//test GetHex()
-		logger.value += "test GetHex() \n";
+		//logger.value += "test GetHex() \n";
 		var hex = cipher.GetHex(testBs);
 		//logger.value += (hex + "").toUpperCase() + "\n";
 
 		//test CreatePoint()
-		logger.value += "test CreatePoint() \n";
+		//logger.value += "test CreatePoint() \n";
 		var point = cipher.CreatePoint(testPoint1Part, testPoint2Part);
 		//logger.value += point + "\n";
 
 		//test RandomKeyPair()
-		logger.value += "test RandomKeyPair() \n";
+		//logger.value += "test RandomKeyPair() \n";
 		var ec = new KJUR.crypto.ECDSA({
 			"curve" : "sm2"
 		});
@@ -191,7 +191,7 @@
 		//logger.value += keypair.ecprvhex.toUpperCase() + "  \n"  + keypair.ecpubhex.toUpperCase() + "\n";
 
 		//this.InitDecipher(privateKey, c1);
-		logger.value += "test multiply() \n";
+		//logger.value += "test multiply() \n";
 		var p2 = point.multiply(bigIntVK);
 		//logger.value += p2 + "\n";
 
