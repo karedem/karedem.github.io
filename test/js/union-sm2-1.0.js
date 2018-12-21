@@ -7296,43 +7296,27 @@ SM2Cipher.prototype = {
 			p2x = "0"+p2x;
 		}
 
-        logger.value += "p2x after Zorepadding    -------" + p2x + "\n";
-
 		var xWords = this.GetWords(p2x);
 		var p2y = this.p2.getY().toBigInteger().toRadix(16);
 
 		while(p2y.length<64){
 			p2y = "0"+p2y;
 		}
-        logger.value += "p2y after Zorepadding    -------" + p2y + "\n";
 
 		var yWords = this.GetWords(p2y);
-
-        logger.value += "xWords    -------\n" + xWords + "\n";
-        logger.value += "yWords    -------\n" + yWords + "\n";
 		var offset = 0;
 		for (var i = 0; i < value; i++) {
 			sm3.BlockUpdate(xWords, 0, xWords.length);
 			sm3.BlockUpdate(yWords, 0, yWords.length);
 			sm3.Update(ct >> 24 & 0x00ff);
-            testCt = ct >> 24 & 0x00ff;
-            logger.value += "ct >> 24 & 0x00ff  ---------\n" + testCt + "\n";
 			sm3.Update(ct >> 16 & 0x00ff);
-            testCt = ct >> 16 & 0x00ff;
-            logger.value += "ct >> 16 & 0x00ff  ---------\n" + testCt + "\n";
 			sm3.Update(ct >> 8 & 0x00ff);
-            testCt = ct >> 8 & 0x00ff;
-            logger.value += "ct >> 8 & 0x00ff  ---------\n" + testCt + "\n";
 			sm3.Update(ct & 0x00ff);
-            testCt = ct & 0x00ff;
-            logger.value += "ct & 0x00ff  ---------\n" + testCt + "\n";
-            logger.value += "offset  ---------\n" + offset + "\n";
 			sm3.DoFinal(t, offset);
 			offset += 32;
 			ct++;
 		}
 
-        logger.value += "ct value  ---------\n" + ct + "\n";
         logger.value += "t value after sm3    -------\n" + t + "\n";
 
 		if (remainder != 0) {

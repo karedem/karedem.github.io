@@ -217,6 +217,18 @@
 		var hashData = new Array(32);
 		sm3.DoFinal(hashData, 0);
 		logger.value += hashData + "\n";
+
+		logger.value += "test SM3() use Update \n";
+		var sm33 = new SM3Digest();
+		for (var i = 0; i < testBs.length; i++) {
+			sm33.Update(testBs[i]);
+		}
+		for (var i = 0; i < testBs.length; i++) {
+			sm33.Update(testBs[i]);
+		}
+		var hashData = new Array(32);
+		sm33.DoFinal(hashData, 0);
+		logger.value += hashData + "\n";
 	}
 
 	processTest();
