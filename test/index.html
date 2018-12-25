@@ -1,0 +1,167 @@
+
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>SM2 Simple</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<script src="js/keyou-crypto.js"></script>
+</head>
+<body>
+	<form name="form1">
+		<h4>Key</h4>
+		<input type="button" value="生成密钥对"
+			onClick="doGenerate();" /><br />
+		<p>
+			私钥 (hex): <input type="text" name="prvkey"
+				value="A172AE7949EFFE714928CE30BE6B8A50B9DAFE24B5AE8CF88D7885E5FFDB8FC2"
+				size="100" /><br /> 公钥X(hex): <input type="text"
+				name="pubkeyX"
+				value="F255FD6F42FE4DDE4E5D99ED4A422BDF81FE9875FEAC74F8F3C2C2B50F154191"
+				size="100" /><br /> 公钥Y(hex): <input type="text"
+				name="pubkeyY"
+				value="FCBFF00451AD87CA65FC7226272879439527BB1F37C8B1A4553A9286898363EB"
+				size="100" /><br />
+		</p>
+
+		<h4>Encrypt:</h4>
+		<input type="text" name="enInput" value="12345678" size="100" /><br />
+		<input type="button" value="加密" onClick="doEncrypt();" /><br />
+		
+		<p>
+		<h4>Result:</h4>
+		加密结果: <input type="text" id="enResult" name="enResult"
+			value=""
+			size="100" /><br />
+		</p>
+
+		<h4>Decrypt:</h4>
+		<input type="text" name="deInput" value="" size="100" /><br />
+		<input type="button" value="解密" onClick="doDecrypt();" /> <input
+			type="reset" value="重置" />
+
+		<p>
+		<h4>Result:</h4>
+		解密结果: <input type="text" id="deResult" name="deResult"
+			value=""
+			size="100" /><br />
+		</p>
+		
+		<p>
+		<h4>process test</h4>
+		 <textarea id="logger" readonly="true" placeholder="" cols="70" rows="40">
+            </textarea><br />
+		</p>
+		<!--<input type="button" id="cryptBtn" value="测试1000次" onClick="crypt();" />-->
+	</form>
+</body>
+<script language="JavaScript" type="text/javascript">
+    /*
+     * 生成公私钥对
+     */
+	function doGenerate() {
+		var f1 = document.form1;
+		var curve = 'SM2';
+		var ec = new KJUR.crypto.ECDSA({
+			"curve" : curve
+		});
+		var keypair = ec.generateKeyPairHex();
+
+		f1.prvkey.value = keypair.ecprvhex;
+		var publickey = keypair.ecpubhex;
+		if (publickey.length > 64 * 2) {
+			publickey = publickey.substr(publickey.length - 64 * 2);
+		}
+		f1.pubkeyX.value = publickey.substr(0, 64);
+		f1.pubkeyY.value = publickey.substr(64);
+	}
+
+	/*
+     * 加密数据
+     */
+	function doEncrypt() {
+		var f1 = document.form1;
+		var pkx = f1.pubkeyX.value;
+		var pky = f1.pubkeyY.value;
+		var data = f1.enInput.value;
+    	var SM2 = KeyouCryptography.algorithm.SM2;
+    	var Hex = KeyouCryptography.util.Hex;
+    	var UTF8 = KeyouCryptography.util.UTF8;
+    	var ciphertext = SM2.encrypt(UTF8.parse(data), Hex.parse(pkx+pky));
+        console.log('CipherText: ' + Hex.stringify(ciphertext));
+        f1.enResult.value = Hex.stringify(ciphertext);
+        f1.deInput.value = Hex.stringify(ciphertext);
+	}
+
+	/*
+     * 解密数据
+     */
+	function doDecrypt() {
+		var f1 = document.form1;
+		var prvkey = f1.prvkey.value;
+		var encryptData = f1.deInput.value.toLowerCase();
+
+		var SM2 = KeyouCryptography.algorithm.SM2;
+    	var Hex = KeyouCryptography.util.Hex;
+    	var UTF8 = KeyouCryptography.util.UTF8;
+
+		var data = SM2.decrypt(Hex.parse(encryptData), Hex.parse(prvkey));
+		f1.deResult.value = UTF8.stringify(data);
+		
+		//data ? f1.enInput.value = UTF8.stringify(data) : alert('fail!');
+	}
+
+	function crypt() {
+		var f1 = document.form1;
+		var msg = f1.msg1.value;
+		var msgData = CryptoJS.enc.Utf8.parse(msg);
+		var xHex = f1.pubkeyX.value;
+		var yHex = f1.pubkeyY.value;
+		var cipherMode = SM2CipherMode.C1C3C2;
+		var cipher = new SM2Cipher(cipherMode);
+		var userKey = cipher.CreatePoint(xHex, yHex);
+		msgData = cipher.GetWords(msgData.toString());
+
+		var prvkey = f1.prvkey.value;
+		var privateKey = new BigInteger(prvkey, 16);
+
+		for (var i = 0; i < 1000; i++) {
+			var encryptData = cipher.Encrypt(userKey, msgData);
+			var decryptData = cipher.Decrypt(privateKey, encryptData);
+			if (decryptData != msg) {
+				f1.sigval1.value = encryptData;
+				alert('fail!');
+				break;
+			}
+		}
+
+		alert('finish!');
+	}
+
+	/**
+	 * [processTest description]
+	 * @return {[type]} [description]
+	 */
+	function processTest() {
+		var Hex = KeyouCryptography.util.Hex;
+		var logger = document.getElementById('logger');
+		var testHexStr = "31323334353637383132333435363738";
+		var testBs = [10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17, 10, 11, 12, 13, 14, 15, 16, 17];
+
+		var SM3 = KeyouCryptography.algorithm.SM3;
+		logger.value += "test SM3() use new SM3 \n";
+		var data = new Array(0);
+		for (var i = 0; i < testBs.length ; i++) {
+			data.push(testBs[i]);
+		}
+		for (var i = 0; i < testBs.length ; i++) {
+			data.push(testBs[i]);
+		}
+		logger.value +=  "\n" + KeyouCryptography.util.Hex.encode(data) + "\n";
+		var sm3hash = SM3.digest(data)
+		logger.value += sm3hash + "\n";
+	}
+
+	processTest();
+</script>
+</html>
