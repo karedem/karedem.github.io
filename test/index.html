@@ -48,6 +48,8 @@
 		</p>
 		
 		<p>
+		<input type="button" value="SM3"
+			onClick="SM3();" /><br />
 		<h4>process test</h4>
 		 <textarea id="logger" readonly="true" placeholder="" cols="70" rows="40">
             </textarea><br />
@@ -148,8 +150,13 @@
 		var logger = document.getElementById('logger');
 		var testHexStr = "31323334353637383132333435363738";
 		var testBs = [10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17, 10, 11, 12, 13, 14, 15, 16, 17];
+	}
 
+	function SM3(){
+		var testBs = [10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17,10, 11, 12, 13, 14, 15, 16, 17, 10, 11, 12, 13, 14, 15, 16, 17];
 		var SM3 = KeyouCryptography.algorithm.SM3;
+		var Hex = KeyouCryptography.util.Hex;
+		var logger = document.getElementById('logger');
 		logger.value += "test SM3() use new SM3 \n";
 		var data = new Array(0);
 		for (var i = 0; i < testBs.length ; i++) {
@@ -158,11 +165,11 @@
 		for (var i = 0; i < testBs.length ; i++) {
 			data.push(testBs[i]);
 		}
-		logger.value +=  "\n" + KeyouCryptography.util.Hex.encode(data) + "\n";
+		//logger.value +=  "\n" + KeyouCryptography.util.Hex.stringify(data) + "\n";
 		var sm3hash = SM3.digest(data)
-		logger.value += sm3hash + "\n";
+		logger.value += KeyouCryptography.util.Hex.stringify(sm3hash) + "\n";
 	}
 
-	processTest();
+	//processTest();
 </script>
 </html>
