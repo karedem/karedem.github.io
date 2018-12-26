@@ -7884,22 +7884,27 @@ SM3Digest.prototype = {
 		this.byteCount++
 	},
 	BlockUpdate : function(input, inOff, length) {
-		while ((this.xBufOff != 0) && (length > 0)) {
-			this.Update(input[inOff]);
-			inOff++;
-			length--
-		}
-		while (length > this.xBuf.length) {
-			this.ProcessWord(input, inOff);
-			inOff += this.xBuf.length;
-			length -= this.xBuf.length;
-			this.byteCount += this.xBuf.length
-		}
-		while (length > 0) {
-			this.Update(input[inOff]);
-			inOff++;
-			length--
-		}
+		// while ((this.xBufOff != 0) && (length > 0)) {
+		// 	this.Update(input[inOff]);
+		// 	inOff++;
+		// 	length--
+		// }
+		// while (length > this.xBuf.length) {
+		// 	this.ProcessWord(input, inOff);
+		// 	inOff += this.xBuf.length;
+		// 	length -= this.xBuf.length;
+		// 	this.byteCount += this.xBuf.length
+		// }
+		// while (length > 0) {
+		// 	this.Update(input[inOff]);
+		// 	inOff++;
+		// 	length--
+		// }
+        //
+        for (var i = 0; i < length; i++) {
+            this.Update(input[i + inOff]);
+        }
+        
 	},
 	Finish : function() {
 		var bitLength = (this.byteCount << 3);
