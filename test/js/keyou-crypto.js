@@ -7867,7 +7867,7 @@ SM3Digest.prototype = {
 		for ( var i = 0; i < 8; i++) {
 			this.IntToBigEndian(this.v[i], out_Renamed, outOff + i * 4)
 		}
-		this.Reset();
+		this.Init();
 		//ADD BY longwx js会出现越界，所以跟oxff做与操作, 2016-4-19
 		var len = out_Renamed.length;
 		for(i=0;i<len;i++){
@@ -8915,6 +8915,8 @@ KJUR.crypto.ECParameterDB.regist(
     			p2y = "0"+p2y;
     		}
     		var yWords = this.GetWords(p2y);
+            this.printLogger("after GetWords() yWords is ",yWords)
+
     		this.sm3c3.BlockUpdate(yWords, 0, yWords.length);
     		this.sm3c3.DoFinal(c3, 0);
     		this.Reset()
@@ -8924,9 +8926,8 @@ KJUR.crypto.ECParameterDB.regist(
     		var data = new Array(plaintext.length);
     		Array.Copy(plaintext, 0, data, 0, plaintext.length);
     		var c1 = this.InitEncipher(pubKey);
-            this.printLogger("after InitEncipher() c1 is", c1)
-            this.printLogger("after InitEncipher() p2 is", this.p2)
     		this.EncryptBlock(data);
+            this.printLogger("after EncryptBlock() data is ",data)
     		var c3 = new Array(32);
     		this.Dofinal(c3);
             this.printLogger("after Dofinal() c3 is ",c3)
@@ -9141,7 +9142,7 @@ this.SM2CipherMode = {
                 var y = key.substring(SM2_KEY_SIZE * 2, SM2_KEY_SIZE * 4);
                 var mode = SM2CipherMode.C1C3C2;
                 var cipher = new SM2Cipher(mode);
-                cipher.SetLogger(logger);
+                cipher.SetLogger(logger)
                 var point = cipher.CreatePoint(x, y);
                 var ciphertext = cipher.Encrypt(point, plaintext);
                 return Hex.parse(ciphertext);
