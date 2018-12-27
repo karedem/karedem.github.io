@@ -48,8 +48,6 @@
 		</p>
 		
 		<p>
-		<input type="button" value="SM3"
-			onClick="SM3();" /><br />
 		<h4>process test</h4>
 		 <textarea id="logger" readonly="true" placeholder="" cols="70" rows="40">
             </textarea><br />
@@ -90,7 +88,9 @@
     	var SM2 = KeyouCryptography.algorithm.SM2;
     	var Hex = KeyouCryptography.util.Hex;
     	var UTF8 = KeyouCryptography.util.UTF8;
-    	var ciphertext = SM2.encrypt(UTF8.parse(data), Hex.parse(pkx+pky));
+    	var logger = document.getElementById('logger');
+    	logger.value = "";
+    	var ciphertext = SM2.encrypt(UTF8.parse(data), Hex.parse(pkx+pky), logger);
         console.log('CipherText: ' + Hex.stringify(ciphertext));
         f1.enResult.value = Hex.stringify(ciphertext);
         f1.deInput.value = Hex.stringify(ciphertext);
