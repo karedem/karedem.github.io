@@ -7867,7 +7867,7 @@ SM3Digest.prototype = {
 		for ( var i = 0; i < 8; i++) {
 			this.IntToBigEndian(this.v[i], out_Renamed, outOff + i * 4)
 		}
-		this.Init();
+		this.Reset();
 		//ADD BY longwx js会出现越界，所以跟oxff做与操作, 2016-4-19
 		var len = out_Renamed.length;
 		for(i=0;i<len;i++){
@@ -8735,7 +8735,8 @@ KJUR.crypto.ECParameterDB.regist(
     	this.ct = 1;
     	this.p2 = null;
     	this.sm3keybase = null;
-    	this.sm3c3 = null;
+    	//this.sm3c3 = null;
+        this.dataForc3 = new Array();
     	this.key = new Array(32);
     	this.keyOff = 0;
     	if (typeof (cipherMode) != 'undefined') {
@@ -8756,7 +8757,8 @@ KJUR.crypto.ECParameterDB.regist(
 
     	Reset : function() {
     		this.sm3keybase = new SM3Digest();
-    		this.sm3c3 = new SM3Digest();
+    		//this.sm3c3 = new SM3Digest();
+            this.dataForc3 = new Array();
     		//mod by huangzh 2016-4-14 p2x,p2y小于64位，前面需要补零
     		var p2x = this.p2.getX().toBigInteger().toRadix(16);
     		while(p2x.length<64){
@@ -8769,7 +8771,10 @@ KJUR.crypto.ECParameterDB.regist(
     		}
     		var yWords = this.GetWords(p2y);
     		this.sm3keybase.BlockUpdate(xWords, 0, xWords.length);
-    		this.sm3c3.BlockUpdate(xWords, 0, xWords.length);
+    		//this.sm3c3.BlockUpdate(xWords, 0, xWords.length);
+            for (var i = 0; i < xWords.length; i++) {
+                this.dataForc3.push(xWords[i]);
+            }
     		this.sm3keybase.BlockUpdate(yWords, 0, yWords.length);
     		this.ct = 1;
     		this.NextKey()
@@ -8868,7 +8873,10 @@ KJUR.crypto.ECParameterDB.regist(
     		return c1
     	},
     	EncryptBlock : function(data) {
-    		this.sm3c3.BlockUpdate(data, 0, data.length);
+            for (var i = 0; i < data.length; i++) {
+                this.dataForc3.push(data[i]);
+            }
+    		//this.sm3c3.BlockUpdate(data, 0, data.length);
     		// del by longwx 2016.01.05
     		// for (var i = 0; i < data.length; i++) {
     		// if (this.keyOff == this.key.length) {
@@ -8898,7 +8906,7 @@ KJUR.crypto.ECParameterDB.regist(
     		// data[i] ^= this.key[this.keyOff++]
     		// }
     		var t = this.KDF(data.length);	
-    		var i=0;
+    		var i = 0;
     		var temp ='';
     		for(i=0;i<t.length;i++){
     			temp +=t[i].toString(16);
@@ -8906,7 +8914,10 @@ KJUR.crypto.ECParameterDB.regist(
     		for (var i = 0; i < data.length; i++) {
     			data[i] ^= t[i];
     		}
-    		this.sm3c3.BlockUpdate(data, 0, data.length)
+            for (var i = 0; i < data.length; i++) {
+                this.dataForc3.push(data[i]);
+            }
+    		//this.sm3c3.BlockUpdate(data, 0, data.length)
     	},
     	Dofinal : function(c3) {
     		//mod by huangzh 2016-4-14 p2y小于64位，前面需要补零
@@ -8916,9 +8927,14 @@ KJUR.crypto.ECParameterDB.regist(
     		}
     		var yWords = this.GetWords(p2y);
             this.printLogger("after GetWords() yWords is ",yWords)
+            var SM3 = KeyouCryptography.algorithm.SM3;
 
-    		this.sm3c3.BlockUpdate(yWords, 0, yWords.length);
-    		this.sm3c3.DoFinal(c3, 0);
+    		//this.sm3c3.BlockUpdate(yWords, 0, yWords.length);
+            for (var i = 0; i < yWords.length; i++) {
+                this.dataForc3.push(yWords[i]);
+            }
+    		var temp = SM3.digest(this.dataForc3);
+            this.ArrayCopy(temp, c3, 0);
     		this.Reset()
     	},
     	Encrypt : function(pubKey, plaintext) {
@@ -9142,7 +9158,7 @@ this.SM2CipherMode = {
                 var y = key.substring(SM2_KEY_SIZE * 2, SM2_KEY_SIZE * 4);
                 var mode = SM2CipherMode.C1C3C2;
                 var cipher = new SM2Cipher(mode);
-                cipher.SetLogger(logger)
+                cipher.SetLogger(logger);
                 var point = cipher.CreatePoint(x, y);
                 var ciphertext = cipher.Encrypt(point, plaintext);
                 return Hex.parse(ciphertext);
