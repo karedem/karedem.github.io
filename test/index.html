@@ -88,9 +88,7 @@
     	var SM2 = KeyouCryptography.algorithm.SM2;
     	var Hex = KeyouCryptography.util.Hex;
     	var UTF8 = KeyouCryptography.util.UTF8;
-    	var logger = document.getElementById('logger');
-    	logger.value = "";
-    	var ciphertext = SM2.encrypt(UTF8.parse(data), Hex.parse(pkx+pky), logger);
+    	var ciphertext = SM2.encrypt(UTF8.parse(data), Hex.parse(pkx+pky));
         console.log('CipherText: ' + Hex.stringify(ciphertext));
         f1.enResult.value = Hex.stringify(ciphertext);
         f1.deInput.value = Hex.stringify(ciphertext);
