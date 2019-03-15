@@ -226,6 +226,9 @@
         },
 
         encode: function (bytes) {
+            if ((typeof bytes=='string')&&bytes.constructor==String ) {
+                bytes = KU.Helper.ascstr2array(bytes);
+            }
             return this.stringify(bytes);
         },
 
@@ -831,6 +834,14 @@
                 var HEX = [0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46];
                 return HEX[((a >> 6) * 9 + (a & 0x0F)) ^ ((b >> 6) * 9 + (b & 0x0F))];
             },
+            arrayXOR:function(a, b){
+                var xorArray = [];
+                for(i = 0; i < a.length; i++){
+                    xorArray[i] = a[i] ^ b[i]; 
+                }
+                return xorArray;
+            },
+
             /**
              * [generateDecRandom 生成随机的 10 进制字符串]
              * @param    {[type]}                 size [字符串长度]
@@ -848,7 +859,59 @@
 
     } ());
 } ());;
+    
+;(function (root, factory) {
+    if (typeof exports === "object") {
+        // CommonJS
+        module.exports = exports = factory();
+    }
+    else if (typeof define === "function" && define.amd) {
+        // AMD
+        define([], factory);
+    }
+    else {
+        // Global (browser)
+        root.UnionLogger = factory();
+    }
+}(this, function () {
+    var UnionLogger = UnionLogger || (function (undefined) {
+        var UL = {
+            size : 1000,
+            startIndex : 0,
+            endIndex : 0,
+            store : new Array(1000),
 
+            /**
+             * 获取当前存储的日志信息
+             * @return String Array
+             * static
+             */
+            get: function () {
+                var logger = "";
+                for (var i = this.startIndex; i < this.endIndex; i++) {
+                    logger += "\n" + this.store[i];
+                }
+                return logger;
+            },
+
+            /**
+             * 添加一条日志信息到缓存
+             * @param {[type]} logger [description]
+             */
+            set: function (logger) {
+                this.store[this.endIndex] = logger;
+                this.endIndex = this.endIndex == 99 ? 0 : this.endIndex + 1;
+            },
+
+            clean: function(){
+                this.store = new Array(1000);
+                this.endIndex = 0;
+            }
+        };
+        return UL;
+    }());
+    return UnionLogger;
+}));;
 
     
         (function () {
@@ -9888,22 +9951,8314 @@ this.SM2CipherMode = {
     
 
     
+        (function(){
+	var KA = KeyouCryptography.algorithm;
+    var Checker = KeyouCryptography.util.Checker;
+
+    /**
+     * AES对称算法
+    **/
+    var AES = KA.AES =(function(){
+
+    	var ENCRYPT_MODE = 0;
+
+        var DECRYPT_MODE = 1;
+
+        var BLOCK_SIZE = 16;
+
+        var ROUNDS ;
+
+        var WorkingKey = new Array();
+
+        var C0, C1, C2, C3;
+
+        var ECB_MODE = 0;
+
+        var CBC_MODE = 1;
+
+        var mode, encryption;
+
+        var S = [  99, 124, 119, 123, 242, 107, 111, 197,  48,   1, 103,  43, 254, 215, 171, 118,
+        		  202, 130, 201, 125, 250,  89,  71, 240, 173, 212, 162, 175, 156, 164, 114, 192,
+        		  183, 253, 147,  38,  54,  63, 247, 204,  52, 165, 229, 241, 113, 216,  49,  21,
+        		    4, 199,  35, 195,  24, 150,   5, 154,   7,  18, 128, 226, 235,  39, 178, 117,
+        		    9, 131,  44,  26,  27, 110,  90, 160,  82,  59, 214, 179,  41, 227,  47, 132,
+        		   83, 209,   0, 237,  32, 252, 177,  91, 106, 203, 190,  57,  74,  76,  88, 207,
+        		  208, 239, 170, 251,  67,  77,  51, 133,  69, 249,   2, 127,  80,  60, 159, 168,
+        		   81, 163,  64, 143, 146, 157,  56, 245, 188, 182, 218,  33,  16, 255, 243, 210,
+        		  205,  12,  19, 236,  95, 151,  68,  23, 196, 167, 126,  61, 100,  93,  25, 115,
+        		   96, 129,  79, 220,  34,  42, 144, 136,  70, 238, 184,  20, 222,  94,  11, 219,
+        		  224,  50,  58,  10,  73,   6,  36,  92, 194, 211, 172,  98, 145, 149, 228, 121,
+        		  231, 200,  55, 109, 141, 213,  78, 169, 108,  86, 244, 234, 101, 122, 174,   8,
+        		  186, 120,  37,  46,  28, 166, 180, 198, 232, 221, 116,  31,  75, 189, 139, 138,
+        		  112,  62, 181, 102,  72,   3, 246,  14,  97,  53,  87, 185, 134, 193,  29, 158,
+        		  225, 248, 152,  17, 105, 217, 142, 148, 155,  30, 135, 233, 206,  85,  40, 223,
+        		  140, 161, 137,  13, 191, 230,  66, 104,  65, 153,  45,  15, 176,  84, 187,  22
+        		];
+        var Si = [  82,   9, 106, 213,  48,  54, 165,  56, 191,  64, 163, 158, 129, 243, 215, 251,
+        		   124, 227,  57, 130, 155,  47, 255, 135,  52, 142,  67,  68, 196, 222, 233, 203,
+        		    84, 123, 148,  50, 166, 194,  35,  61, 238,  76, 149,  11,  66, 250, 195,  78,
+        		     8,  46, 161, 102,  40, 217,  36, 178, 118,  91, 162,  73, 109, 139, 209,  37,
+        		   114, 248, 246, 100, 134, 104, 152,  22, 212, 164,  92, 204,  93, 101, 182, 146,
+        		   108, 112,  72,  80, 253, 237, 185, 218,  94,  21,  70,  87, 167, 141, 157, 132,
+        		   144, 216, 171,   0, 140, 188, 211,  10, 247, 228,  88,   5, 184, 179,  69,   6,
+        		   208,  44,  30, 143, 202,  63,  15,   2, 193, 175, 189,   3,   1,  19, 138, 107,
+        		    58, 145,  17,  65,  79, 103, 220, 234, 151, 242, 207, 206, 240, 180, 230, 115,
+        		   150, 172, 116,  34, 231, 173,  53, 133, 226, 249,  55, 232,  28, 117, 223, 110,
+        		    71, 241,  26, 113,  29,  41, 197, 137, 111, 183,  98,  14, 170,  24, 190,  27,
+        		   252,  86,  62,  75, 198, 210, 121,  32, 154, 219, 192, 254, 120, 205,  90, 244,
+        		    31, 221, 168,  51, 136,   7, 199,  49, 177,  18,  16,  89,  39, 128, 236,  95,
+        		    96,  81, 127, 169,  25, 181,  74,  13,  45, 229, 122, 159, 147, 201, 156, 239,
+        		   160, 224,  59,  77, 174,  42, 245, 176, 200, 235, 187,  60, 131,  83, 153,  97,
+        		    23,  43,   4, 126, 186, 119, 214,  38, 225, 105,  20,  99,  85,  33,  12, 125
+        		 ];
+        var Rcon = [ 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c, 0xd8, 0xab, 			0x4d, 0x9a, 0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97, 0x35, 0x6a, 0xd4, 0xb3, 0x7d, 
+         			 0xfa, 0xef, 0xc5, 0x91
+         		   ];
+       	var T0 = [ 0xa56363c6, 0x847c7cf8, 0x997777ee, 0x8d7b7bf6, 0x0df2f2ff, 0xbd6b6bd6, 
+         		   0xb16f6fde, 0x54c5c591, 0x50303060, 0x03010102, 0xa96767ce, 0x7d2b2b56, 
+         		   0x19fefee7, 0x62d7d7b5, 0xe6abab4d, 0x9a7676ec, 0x45caca8f, 0x9d82821f, 
+         		   0x40c9c989, 0x877d7dfa, 0x15fafaef, 0xeb5959b2, 0xc947478e, 0x0bf0f0fb, 
+         		   0xecadad41, 0x67d4d4b3, 0xfda2a25f, 0xeaafaf45, 0xbf9c9c23, 0xf7a4a453, 
+         		   0x967272e4, 0x5bc0c09b, 0xc2b7b775, 0x1cfdfde1, 0xae93933d, 0x6a26264c, 
+         		   0x5a36366c, 0x413f3f7e, 0x02f7f7f5, 0x4fcccc83, 0x5c343468, 0xf4a5a551, 
+         		   0x34e5e5d1, 0x08f1f1f9, 0x937171e2, 0x73d8d8ab, 0x53313162, 0x3f15152a, 
+         		   0x0c040408, 0x52c7c795, 0x65232346, 0x5ec3c39d, 0x28181830, 0xa1969637, 
+         		   0x0f05050a, 0xb59a9a2f, 0x0907070e, 0x36121224, 0x9b80801b, 0x3de2e2df, 
+         		   0x26ebebcd, 0x6927274e, 0xcdb2b27f, 0x9f7575ea, 0x1b090912, 0x9e83831d, 
+         		   0x742c2c58, 0x2e1a1a34, 0x2d1b1b36, 0xb26e6edc, 0xee5a5ab4, 0xfba0a05b, 
+         		   0xf65252a4, 0x4d3b3b76, 0x61d6d6b7, 0xceb3b37d, 0x7b292952, 0x3ee3e3dd, 
+         		   0x712f2f5e, 0x97848413, 0xf55353a6, 0x68d1d1b9, 0x00000000, 0x2cededc1, 
+         		   0x60202040, 0x1ffcfce3, 0xc8b1b179, 0xed5b5bb6, 0xbe6a6ad4, 0x46cbcb8d, 
+         		   0xd9bebe67, 0x4b393972, 0xde4a4a94, 0xd44c4c98, 0xe85858b0, 0x4acfcf85, 
+         		   0x6bd0d0bb, 0x2aefefc5, 0xe5aaaa4f, 0x16fbfbed, 0xc5434386, 0xd74d4d9a, 
+         		   0x55333366, 0x94858511, 0xcf45458a, 0x10f9f9e9, 0x06020204, 0x817f7ffe, 
+         		   0xf05050a0, 0x443c3c78, 0xba9f9f25, 0xe3a8a84b, 0xf35151a2, 0xfea3a35d, 
+         		   0xc0404080, 0x8a8f8f05, 0xad92923f, 0xbc9d9d21, 0x48383870, 0x04f5f5f1, 
+         		   0xdfbcbc63, 0xc1b6b677, 0x75dadaaf, 0x63212142, 0x30101020, 0x1affffe5, 
+         		   0x0ef3f3fd, 0x6dd2d2bf, 0x4ccdcd81, 0x140c0c18, 0x35131326, 0x2fececc3, 
+         		   0xe15f5fbe, 0xa2979735, 0xcc444488, 0x3917172e, 0x57c4c493, 0xf2a7a755, 
+         		   0x827e7efc, 0x473d3d7a, 0xac6464c8, 0xe75d5dba, 0x2b191932, 0x957373e6, 
+         		   0xa06060c0, 0x98818119, 0xd14f4f9e, 0x7fdcdca3, 0x66222244, 0x7e2a2a54, 
+         		   0xab90903b, 0x8388880b, 0xca46468c, 0x29eeeec7, 0xd3b8b86b, 0x3c141428, 
+         		   0x79dedea7, 0xe25e5ebc, 0x1d0b0b16, 0x76dbdbad, 0x3be0e0db, 0x56323264, 
+         		   0x4e3a3a74, 0x1e0a0a14, 0xdb494992, 0x0a06060c, 0x6c242448, 0xe45c5cb8, 
+         		   0x5dc2c29f, 0x6ed3d3bd, 0xefacac43, 0xa66262c4, 0xa8919139, 0xa4959531, 
+         		   0x37e4e4d3, 0x8b7979f2, 0x32e7e7d5, 0x43c8c88b, 0x5937376e, 0xb76d6dda, 
+         		   0x8c8d8d01, 0x64d5d5b1, 0xd24e4e9c, 0xe0a9a949, 0xb46c6cd8, 0xfa5656ac, 
+         		   0x07f4f4f3, 0x25eaeacf, 0xaf6565ca, 0x8e7a7af4, 0xe9aeae47, 0x18080810, 
+         		   0xd5baba6f, 0x887878f0, 0x6f25254a, 0x722e2e5c, 0x241c1c38, 0xf1a6a657, 
+         		   0xc7b4b473, 0x51c6c697, 0x23e8e8cb, 0x7cdddda1, 0x9c7474e8, 0x211f1f3e, 
+         		   0xdd4b4b96, 0xdcbdbd61, 0x868b8b0d, 0x858a8a0f, 0x907070e0, 0x423e3e7c, 
+         		   0xc4b5b571, 0xaa6666cc, 0xd8484890, 0x05030306, 0x01f6f6f7, 0x120e0e1c, 
+         		   0xa36161c2, 0x5f35356a, 0xf95757ae, 0xd0b9b969, 0x91868617, 0x58c1c199, 
+         		   0x271d1d3a, 0xb99e9e27, 0x38e1e1d9, 0x13f8f8eb, 0xb398982b, 0x33111122, 
+         		   0xbb6969d2, 0x70d9d9a9, 0x898e8e07, 0xa7949433, 0xb69b9b2d, 0x221e1e3c, 
+         		   0x92878715, 0x20e9e9c9, 0x49cece87, 0xff5555aa, 0x78282850, 0x7adfdfa5, 
+         		   0x8f8c8c03, 0xf8a1a159, 0x80898909, 0x170d0d1a, 0xdabfbf65, 0x31e6e6d7, 
+         		   0xc6424284, 0xb86868d0, 0xc3414182, 0xb0999929, 0x772d2d5a, 0x110f0f1e, 
+         		   0xcbb0b07b, 0xfc5454a8, 0xd6bbbb6d, 0x3a16162c
+       			 ];
+       	var Tinv0 = [ 0x50a7f451, 0x5365417e, 0xc3a4171a, 0x965e273a, 0xcb6bab3b, 0xf1459d1f, 
+   					  0xab58faac, 0x9303e34b, 0x55fa3020, 0xf66d76ad, 0x9176cc88, 0x254c02f5, 
+   					  0xfcd7e54f, 0xd7cb2ac5, 0x80443526, 0x8fa362b5, 0x495ab1de, 0x671bba25, 
+   					  0x980eea45, 0xe1c0fe5d, 0x02752fc3, 0x12f04c81, 0xa397468d, 0xc6f9d36b, 
+   					  0xe75f8f03, 0x959c9215, 0xeb7a6dbf, 0xda595295, 0x2d83bed4, 0xd3217458, 
+   					  0x2969e049, 0x44c8c98e, 0x6a89c275, 0x78798ef4, 0x6b3e5899, 0xdd71b927, 
+   					  0xb64fe1be, 0x17ad88f0, 0x66ac20c9, 0xb43ace7d, 0x184adf63, 0x82311ae5, 
+   					  0x60335197, 0x457f5362, 0xe07764b1, 0x84ae6bbb, 0x1ca081fe, 0x942b08f9, 
+   					  0x58684870, 0x19fd458f, 0x876cde94, 0xb7f87b52, 0x23d373ab, 0xe2024b72, 
+   					  0x578f1fe3, 0x2aab5566, 0x0728ebb2, 0x03c2b52f, 0x9a7bc586, 0xa50837d3, 
+   					  0xf2872830, 0xb2a5bf23, 0xba6a0302, 0x5c8216ed, 0x2b1ccf8a, 0x92b479a7, 
+   					  0xf0f207f3, 0xa1e2694e, 0xcdf4da65, 0xd5be0506, 0x1f6234d1, 0x8afea6c4, 
+   					  0x9d532e34, 0xa055f3a2, 0x32e18a05, 0x75ebf6a4, 0x39ec830b, 0xaaef6040, 
+   					  0x069f715e, 0x51106ebd, 0xf98a213e, 0x3d06dd96, 0xae053edd, 0x46bde64d, 
+   					  0xb58d5491, 0x055dc471, 0x6fd40604, 0xff155060, 0x24fb9819, 0x97e9bdd6, 
+   					  0xcc434089, 0x779ed967, 0xbd42e8b0, 0x888b8907, 0x385b19e7, 0xdbeec879, 
+   					  0x470a7ca1, 0xe90f427c, 0xc91e84f8, 0x00000000, 0x83868009, 0x48ed2b32, 
+   					  0xac70111e, 0x4e725a6c, 0xfbff0efd, 0x5638850f, 0x1ed5ae3d, 0x27392d36, 
+   					  0x64d90f0a, 0x21a65c68, 0xd1545b9b, 0x3a2e3624, 0xb1670a0c, 0x0fe75793,
+   					  0xd296eeb4, 0x9e919b1b, 0x4fc5c080, 0xa220dc61, 0x694b775a, 0x161a121c, 
+   					  0x0aba93e2, 0xe52aa0c0, 0x43e0223c, 0x1d171b12, 0x0b0d090e, 0xadc78bf2, 
+   					  0xb9a8b62d, 0xc8a91e14, 0x8519f157, 0x4c0775af, 0xbbdd99ee, 0xfd607fa3, 
+   					  0x9f2601f7, 0xbcf5725c, 0xc53b6644, 0x347efb5b, 0x7629438b, 0xdcc623cb, 
+   					  0x68fcedb6, 0x63f1e4b8, 0xcadc31d7, 0x10856342, 0x40229713, 0x2011c684, 
+   					  0x7d244a85, 0xf83dbbd2, 0x1132f9ae, 0x6da129c7, 0x4b2f9e1d, 0xf330b2dc, 
+   					  0xec52860d, 0xd0e3c177, 0x6c16b32b, 0x99b970a9, 0xfa489411, 0x2264e947, 
+   					  0xc48cfca8, 0x1a3ff0a0, 0xd82c7d56, 0xef903322, 0xc74e4987, 0xc1d138d9, 
+   					  0xfea2ca8c, 0x360bd498, 0xcf81f5a6, 0x28de7aa5, 0x268eb7da, 0xa4bfad3f, 
+   					  0xe49d3a2c, 0x0d927850, 0x9bcc5f6a, 0x62467e54, 0xc2138df6, 0xe8b8d890, 
+   					  0x5ef7392e, 0xf5afc382, 0xbe805d9f, 0x7c93d069, 0xa92dd56f, 0xb31225cf, 
+   					  0x3b99acc8, 0xa77d1810, 0x6e639ce8, 0x7bbb3bdb, 0x097826cd, 0xf418596e, 
+   					  0x01b79aec, 0xa89a4f83, 0x656e95e6, 0x7ee6ffaa, 0x08cfbc21, 0xe6e815ef, 
+   					  0xd99be7ba, 0xce366f4a, 0xd4099fea, 0xd67cb029, 0xafb2a431, 0x31233f2a, 
+   					  0x3094a5c6, 0xc066a235, 0x37bc4e74, 0xa6ca82fc, 0xb0d090e0, 0x15d8a733, 
+   					  0x4a9804f1, 0xf7daec41, 0x0e50cd7f, 0x2ff69117, 0x8dd64d76, 0x4db0ef43, 
+   					  0x544daacc, 0xdf0496e4, 0xe3b5d19e, 0x1b886a4c, 0xb81f2cc1, 0x7f516546, 
+   					  0x04ea5e9d, 0x5d358c01, 0x737487fa, 0x2e410bfb, 0x5a1d67b3, 0x52d2db92, 
+   					  0x335610e9, 0x1347d66d, 0x8c61d79a, 0x7a0ca137, 0x8e14f859, 0x893c13eb, 
+   					  0xee27a9ce, 0x35c961b7, 0xede51ce1, 0x3cb1477a, 0x59dfd29c, 0x3f73f255, 
+   					  0x79ce1418, 0xbf37c773, 0xeacdf753, 0x5baafd5f, 0x146f3ddf, 0x86db4478, 
+   					  0x81f3afca, 0x3ec468b9, 0x2c342438, 0x5f40a3c2, 0x72c31d16, 0x0c25e2bc, 
+   					  0x8b493c28, 0x41950dff, 0x7101a839, 0xdeb30c08, 0x9ce4b4d8, 0x90c15664, 
+   					  0x6184cb7b, 0x70b632d5, 0x745c6c48, 0x4257b8d0
+       				];
+
+       	function shift(r, shift){
+       		return (r >>> shift) | (r << -shift)
+       	}
+
+       	var m1 = 0x80808080;
+       	var m2 = 0x7f7f7f7f;
+       	var m3 = 0x0000001b;
+       	var m4 = 0xC0C0C0C0;
+       	var m5 = 0x3f3f3f3f;
+
+       	function FFmulX(x){
+       		return (((x & m2) << 1) ^ (((x & m1) >>> 7) * m3));
+       	}
+
+       	function FFmulX2(x){
+       		var t0  = (x & m5) << 2;
+        	var t1  = (x & m4);
+            t1 ^= (t1 >>> 1);
+        	return t0 ^ (t1 >>> 2) ^ (t1 >>> 5);
+       	}
+
+       	function inv_mcol(x){
+       		var t0,t1;
+       		t0 = x;
+       		t1 = t0 ^ shift(t0, 8);
+       		t0 ^= FFmulX(t1);
+        	t1 ^= FFmulX2(t0);
+        	t0 ^= t1 ^ shift(t1, 16);
+        	return t0;
+       	}
+
+       	function subWord(x){
+       		return (S[x&255]&255 | ((S[(x>>8)&255]&255)<<8) | ((S[(x>>16)&255]&255)<<16) | S[(x>>24)&255]<<24);
+       	}
+
+       	function littleEndianToInt(bs, off){
+       		var n = bs[  off] & 0xff;
+        	n |= (bs[++off] & 0xff) << 8;
+       	 	n |= (bs[++off] & 0xff) << 16;
+        	n |= bs[++off] << 24;
+        	return n;
+       	}
+
+       	function generateWorkingKey(key, encryption){
+       		var keyLen = key.length;
+       		//check key长度
+       		var KC = keyLen >>> 2;
+       		ROUNDS = KC + 6; 
+       		var W = new Array(ROUNDS+1);
+       		for(var i = 0 ; i <= ROUNDS ; i++){
+       			W[i] = new Array(4);
+       		}
+
+       		switch (KC)
+	        {
+	        case 4:
+	        {
+	            var t0 = littleEndianToInt(key,  0); W[0][0] = t0;
+	            var t1 = littleEndianToInt(key,  4); W[0][1] = t1;
+	            var t2 = littleEndianToInt(key,  8); W[0][2] = t2;
+	            var t3 = littleEndianToInt(key, 12); W[0][3] = t3;
+
+	            for (var i = 1; i <= 10; ++i)
+	            {
+	                var u = subWord(shift(t3, 8)) ^ Rcon[i - 1];
+	                t0 ^= u;  W[i][0] = t0;
+	                t1 ^= t0; W[i][1] = t1;
+	                t2 ^= t1; W[i][2] = t2;
+	                t3 ^= t2; W[i][3] = t3;
+	            }
+
+	            break;
+	        }
+	        case 6:
+	        {
+	            var t0 = littleEndianToInt(key,  0); W[0][0] = t0;
+	            var t1 = littleEndianToInt(key,  4); W[0][1] = t1;
+	            var t2 = littleEndianToInt(key,  8); W[0][2] = t2;
+	            var t3 = littleEndianToInt(key, 12); W[0][3] = t3;
+	            var t4 = littleEndianToInt(key, 16); W[1][0] = t4;
+	            var t5 = littleEndianToInt(key, 20); W[1][1] = t5;
+
+	            var lcon = 1;
+	            var u = subWord(shift(t5, 8)) ^ lcon; lcon <<= 1;
+	            t0 ^= u;  W[1][2] = t0;
+	            t1 ^= t0; W[1][3] = t1;
+	            t2 ^= t1; W[2][0] = t2;
+	            t3 ^= t2; W[2][1] = t3;
+	            t4 ^= t3; W[2][2] = t4;
+	            t5 ^= t4; W[2][3] = t5;
+
+	            for (var i = 3; i < 12; i += 3)
+	            {
+	                u = subWord(shift(t5, 8)) ^ lcon; lcon <<= 1;
+	                t0 ^= u;  W[i    ][0] = t0;
+	                t1 ^= t0; W[i    ][1] = t1;
+	                t2 ^= t1; W[i    ][2] = t2;
+	                t3 ^= t2; W[i    ][3] = t3;
+	                t4 ^= t3; W[i + 1][0] = t4;
+	                t5 ^= t4; W[i + 1][1] = t5;
+	                u = subWord(shift(t5, 8)) ^ lcon; lcon <<= 1;
+	                t0 ^= u;  W[i + 1][2] = t0;
+	                t1 ^= t0; W[i + 1][3] = t1;
+	                t2 ^= t1; W[i + 2][0] = t2;
+	                t3 ^= t2; W[i + 2][1] = t3;
+	                t4 ^= t3; W[i + 2][2] = t4;
+	                t5 ^= t4; W[i + 2][3] = t5;
+	            }
+
+	            u = subWord(shift(t5, 8)) ^ lcon;
+	            t0 ^= u;  W[12][0] = t0;
+	            t1 ^= t0; W[12][1] = t1;
+	            t2 ^= t1; W[12][2] = t2;
+	            t3 ^= t2; W[12][3] = t3;
+
+	            break;
+	        }
+	        case 8:
+	        {
+	            var t0 = littleEndianToInt(key,  0); W[0][0] = t0;
+	            var t1 = littleEndianToInt(key,  4); W[0][1] = t1;
+	            var t2 = littleEndianToInt(key,  8); W[0][2] = t2;
+	            var t3 = littleEndianToInt(key, 12); W[0][3] = t3;
+	            var t4 = littleEndianToInt(key, 16); W[1][0] = t4;
+	            var t5 = littleEndianToInt(key, 20); W[1][1] = t5;
+	            var t6 = littleEndianToInt(key, 24); W[1][2] = t6;
+	            var t7 = littleEndianToInt(key, 28); W[1][3] = t7;
+
+	            var u, lcon = 1;
+
+	            for (var i = 2; i < 14; i += 2)
+	            {
+	                u = subWord(shift(t7, 8)) ^ lcon; lcon <<= 1;
+	                t0 ^= u;  W[i    ][0] = t0;
+	                t1 ^= t0; W[i    ][1] = t1;
+	                t2 ^= t1; W[i    ][2] = t2;
+	                t3 ^= t2; W[i    ][3] = t3;
+	                u = subWord(t3);
+	                t4 ^= u;  W[i + 1][0] = t4;
+	                t5 ^= t4; W[i + 1][1] = t5;
+	                t6 ^= t5; W[i + 1][2] = t6;
+	                t7 ^= t6; W[i + 1][3] = t7;
+	            }
+
+	            u = subWord(shift(t7, 8)) ^ lcon;
+	            t0 ^= u;  W[14][0] = t0;
+	            t1 ^= t0; W[14][1] = t1;
+	            t2 ^= t1; W[14][2] = t2;
+	            t3 ^= t2; W[14][3] = t3;
+
+	            break;
+	        }
+	        default:
+	        {
+	            return -1;
+	        }
+	        }
+
+	        if (encryption === DECRYPT_MODE)
+	        {
+	            for (var j = 1; j < ROUNDS; j++)
+	            {
+	                for (var i = 0; i < 4; i++)
+	                {
+	                    W[j][i] = inv_mcol(W[j][i]);
+	                }
+	            }
+	        }
+
+	        return W;
+       	}
+
+       	function unpackBlock(bytes, off){
+       		var index = off;
+
+	        C0 = (bytes[index++] & 0xff);
+	        C0 |= (bytes[index++] & 0xff) << 8;
+	        C0 |= (bytes[index++] & 0xff) << 16;
+	        C0 |= bytes[index++] << 24;
+
+	        C1 = (bytes[index++] & 0xff);
+	        C1 |= (bytes[index++] & 0xff) << 8;
+	        C1 |= (bytes[index++] & 0xff) << 16;
+	        C1 |= bytes[index++] << 24;
+
+	        C2 = (bytes[index++] & 0xff);
+	        C2 |= (bytes[index++] & 0xff) << 8;
+	        C2 |= (bytes[index++] & 0xff) << 16;
+	        C2 |= bytes[index++] << 24;
+
+	        C3 = (bytes[index++] & 0xff);
+	        C3 |= (bytes[index++] & 0xff) << 8;
+	        C3 |= (bytes[index++] & 0xff) << 16;
+	        C3 |= bytes[index++] << 24;
+       	}
+
+       	function packBlock(bytes, off){
+       		var index = off;
+
+	        bytes[index++] = C0 & 0xFF;
+	        bytes[index++] = (C0 >>> 8) & 0xFF;
+	        bytes[index++] = (C0 >>> 16) & 0xFF;
+	        bytes[index++] = (C0 >>> 24) & 0xFF;
+
+	        bytes[index++] = C1 & 0xFF;
+	        bytes[index++] = (C1 >>> 8) & 0xFF;
+	        bytes[index++] = (C1 >>> 16) & 0xFF;
+	        bytes[index++] = (C1 >>> 24) & 0xFF;
+
+	        bytes[index++] = C2 & 0xFF;
+	        bytes[index++] = (C2 >>> 8) & 0xFF;
+	        bytes[index++] = (C2 >>> 16) & 0xFF;
+	        bytes[index++] = (C2 >>> 24) & 0xFF;
+
+	        bytes[index++] = C3 & 0xFF;
+	        bytes[index++] = (C3 >>> 8) & 0xFF;
+	        bytes[index++] = (C3 >>> 16) & 0xFF;
+	        bytes[index++] = (C3 >>> 24) & 0xFF;
+       	}
+
+       	function encryptBlock(KW){
+       		var t0 = C0 ^ KW[0][0];
+	        var t1 = C1 ^ KW[0][1];
+	        var t2 = C2 ^ KW[0][2];
+
+	        var r = 1, r0, r1, r2, r3 = C3 ^ KW[0][3];
+	        while (r < ROUNDS - 1)
+	        {
+	            r0 = T0[t0&255] ^ shift(T0[(t1>>>8)&255], 24) ^ shift(T0[(t2>>>16)&255], 16) ^ shift(T0[(r3>>>24)&255], 8) ^ KW[r][0];
+	            r1 = T0[t1&255] ^ shift(T0[(t2>>>8)&255], 24) ^ shift(T0[(r3>>>16)&255], 16) ^ shift(T0[(t0>>>24)&255], 8) ^ KW[r][1];
+	            r2 = T0[t2&255] ^ shift(T0[(r3>>>8)&255], 24) ^ shift(T0[(t0>>>16)&255], 16) ^ shift(T0[(t1>>>24)&255], 8) ^ KW[r][2];
+	            r3 = T0[r3&255] ^ shift(T0[(t0>>>8)&255], 24) ^ shift(T0[(t1>>>16)&255], 16) ^ shift(T0[(t2>>>24)&255], 8) ^ KW[r++][3];
+	            t0 = T0[r0&255] ^ shift(T0[(r1>>>8)&255], 24) ^ shift(T0[(r2>>>16)&255], 16) ^ shift(T0[(r3>>>24)&255], 8) ^ KW[r][0];
+	            t1 = T0[r1&255] ^ shift(T0[(r2>>>8)&255], 24) ^ shift(T0[(r3>>>16)&255], 16) ^ shift(T0[(r0>>>24)&255], 8) ^ KW[r][1];
+	            t2 = T0[r2&255] ^ shift(T0[(r3>>>8)&255], 24) ^ shift(T0[(r0>>>16)&255], 16) ^ shift(T0[(r1>>>24)&255], 8) ^ KW[r][2];
+	            r3 = T0[r3&255] ^ shift(T0[(r0>>>8)&255], 24) ^ shift(T0[(r1>>>16)&255], 16) ^ shift(T0[(r2>>>24)&255], 8) ^ KW[r++][3];
+	        }
+
+	        r0 = T0[t0&255] ^ shift(T0[(t1>>>8)&255], 24) ^ shift(T0[(t2>>>16)&255], 16) ^ shift(T0[(r3>>>24)&255], 8) ^ KW[r][0];
+	        r1 = T0[t1&255] ^ shift(T0[(t2>>>8)&255], 24) ^ shift(T0[(r3>>>16)&255], 16) ^ shift(T0[(t0>>>24)&255], 8) ^ KW[r][1];
+	        r2 = T0[t2&255] ^ shift(T0[(r3>>>8)&255], 24) ^ shift(T0[(t0>>>16)&255], 16) ^ shift(T0[(t1>>>24)&255], 8) ^ KW[r][2];
+	        r3 = T0[r3&255] ^ shift(T0[(t0>>>8)&255], 24) ^ shift(T0[(t1>>>16)&255], 16) ^ shift(T0[(t2>>>24)&255], 8) ^ KW[r++][3];
+
+	        // the final round's table is a simple function of S so we don't use a whole other four tables for it
+
+	        C0 = (S[r0&255]&255) ^ ((S[(r1>>>8)&255]&255)<<8) ^ ((S[(r2>>>16)&255]&255)<<16) ^ (S[(r3>>>24)&255]<<24) ^ KW[r][0];
+	        C1 = (S[r1&255]&255) ^ ((S[(r2>>>8)&255]&255)<<8) ^ ((S[(r3>>>16)&255]&255)<<16) ^ (S[(r0>>>24)&255]<<24) ^ KW[r][1];
+	        C2 = (S[r2&255]&255) ^ ((S[(r3>>>8)&255]&255)<<8) ^ ((S[(r0>>>16)&255]&255)<<16) ^ (S[(r1>>>24)&255]<<24) ^ KW[r][2];
+	        C3 = (S[r3&255]&255) ^ ((S[(r0>>>8)&255]&255)<<8) ^ ((S[(r1>>>16)&255]&255)<<16) ^ (S[(r2>>>24)&255]<<24) ^ KW[r][3];
+       	}
+
+       	function decryptBlock(KW){
+       		var t0 = C0 ^ KW[ROUNDS][0];
+	        var t1 = C1 ^ KW[ROUNDS][1];
+	        var t2 = C2 ^ KW[ROUNDS][2];
+
+	        var r = ROUNDS - 1, r0, r1, r2, r3 = C3 ^ KW[ROUNDS][3];
+	        while (r > 1)
+	        {
+	            r0 = Tinv0[t0&255] ^ shift(Tinv0[(r3>>>8)&255], 24) ^ shift(Tinv0[(t2>>>16)&255], 16) ^ shift(Tinv0[(t1>>>24)&255], 8) ^ KW[r][0];
+	            r1 = Tinv0[t1&255] ^ shift(Tinv0[(t0>>>8)&255], 24) ^ shift(Tinv0[(r3>>>16)&255], 16) ^ shift(Tinv0[(t2>>>24)&255], 8) ^ KW[r][1];
+	            r2 = Tinv0[t2&255] ^ shift(Tinv0[(t1>>>8)&255], 24) ^ shift(Tinv0[(t0>>>16)&255], 16) ^ shift(Tinv0[(r3>>>24)&255], 8) ^ KW[r][2];
+	            r3 = Tinv0[r3&255] ^ shift(Tinv0[(t2>>>8)&255], 24) ^ shift(Tinv0[(t1>>>16)&255], 16) ^ shift(Tinv0[(t0>>>24)&255], 8) ^ KW[r--][3];
+	            t0 = Tinv0[r0&255] ^ shift(Tinv0[(r3>>>8)&255], 24) ^ shift(Tinv0[(r2>>>16)&255], 16) ^ shift(Tinv0[(r1>>>24)&255], 8) ^ KW[r][0];
+	            t1 = Tinv0[r1&255] ^ shift(Tinv0[(r0>>>8)&255], 24) ^ shift(Tinv0[(r3>>>16)&255], 16) ^ shift(Tinv0[(r2>>>24)&255], 8) ^ KW[r][1];
+	            t2 = Tinv0[r2&255] ^ shift(Tinv0[(r1>>>8)&255], 24) ^ shift(Tinv0[(r0>>>16)&255], 16) ^ shift(Tinv0[(r3>>>24)&255], 8) ^ KW[r][2];
+	            r3 = Tinv0[r3&255] ^ shift(Tinv0[(r2>>>8)&255], 24) ^ shift(Tinv0[(r1>>>16)&255], 16) ^ shift(Tinv0[(r0>>>24)&255], 8) ^ KW[r--][3];
+	        }
+
+	        r0 = Tinv0[t0&255] ^ shift(Tinv0[(r3>>>8)&255], 24) ^ shift(Tinv0[(t2>>>16)&255], 16) ^ shift(Tinv0[(t1>>>24)&255], 8) ^ KW[r][0];
+	        r1 = Tinv0[t1&255] ^ shift(Tinv0[(t0>>>8)&255], 24) ^ shift(Tinv0[(r3>>>16)&255], 16) ^ shift(Tinv0[(t2>>>24)&255], 8) ^ KW[r][1];
+	        r2 = Tinv0[t2&255] ^ shift(Tinv0[(t1>>>8)&255], 24) ^ shift(Tinv0[(t0>>>16)&255], 16) ^ shift(Tinv0[(r3>>>24)&255], 8) ^ KW[r][2];
+	        r3 = Tinv0[r3&255] ^ shift(Tinv0[(t2>>>8)&255], 24) ^ shift(Tinv0[(t1>>>16)&255], 16) ^ shift(Tinv0[(t0>>>24)&255], 8) ^ KW[r][3];
+	        
+	        // the final round's table is a simple function of Si so we don't use a whole other four tables for it
+
+	        C0 = (Si[r0&255]&255) ^ ((Si[(r3>>>8)&255]&255)<<8) ^ ((Si[(r2>>>16)&255]&255)<<16) ^ (Si[(r1>>>24)&255]<<24) ^ KW[0][0];
+	        C1 = (Si[r1&255]&255) ^ ((Si[(r0>>>8)&255]&255)<<8) ^ ((Si[(r3>>>16)&255]&255)<<16) ^ (Si[(r2>>>24)&255]<<24) ^ KW[0][1];
+	        C2 = (Si[r2&255]&255) ^ ((Si[(r1>>>8)&255]&255)<<8) ^ ((Si[(r0>>>16)&255]&255)<<16) ^ (Si[(r3>>>24)&255]<<24) ^ KW[0][2];
+	        C3 = (Si[r3&255]&255) ^ ((Si[(r2>>>8)&255]&255)<<8) ^ ((Si[(r1>>>16)&255]&255)<<16) ^ (Si[(r0>>>24)&255]<<24) ^ KW[0][3];
+       	}
+
+       	function processBlock(input, inOff, out, outOff){
+       		//check
+       		if(encryption === ENCRYPT_MODE){
+       			unpackBlock(input, inOff);
+            	encryptBlock(WorkingKey);
+            	packBlock(out, outOff);
+       		}
+       		else{
+       			unpackBlock(input, inOff);
+	            decryptBlock(WorkingKey);
+	            packBlock(out, outOff);
+       		}
+
+       		return BLOCK_SIZE;
+       	}
+
+       	var XOR = function (data, iv) {
+            var xor = new Array(BLOCK_SIZE);
+            for (var i = 0; i < BLOCK_SIZE; i++) {
+                xor[i] = data[i] ^ iv[i];
+            }
+            return xor;
+        }
+
+        var Copy = function (src, srcOffset, des, desOffset, length) {
+            for (var i = 0; i < length; i++) {
+                des[i + desOffset] = src[i + srcOffset];
+            }
+            return src;
+        }
+       	
+       	return {
+       		name: "AES algorithm",
+
+            // 密钥长度 16 bytes
+            KEY_SIZE: BLOCK_SIZE,
+
+            encryptWithECB: function (plaintext, key) {
+
+            	WorkingKey = generateWorkingKey(key, ENCRYPT_MODE);
+            	encryption = ENCRYPT_MODE;
+            	var length = plaintext.length;
+                var ciphertext = new Array(length);
+                var offset = 0;
+                while(offset < length) {
+                    processBlock(plaintext, offset, ciphertext, offset);
+                    offset += 16;
+                }
+                return ciphertext;
+            },
+
+            decryptWithECB: function (ciphertext, key) {
+				WorkingKey = generateWorkingKey(key, DECRYPT_MODE);
+            	encryption = DECRYPT_MODE;
+            	var length = ciphertext.length;
+                var plaintext = new Array(length);
+                var offset = 0;
+                while(offset < length) {
+                    processBlock(ciphertext, offset, plaintext, offset);
+                    offset += 16;
+                }
+                return plaintext;
+            },
+
+            encryptWithCBC: function (data, key, iv) {
+ 				WorkingKey = generateWorkingKey(key, ENCRYPT_MODE);
+            	encryption = ENCRYPT_MODE;
+                var output = new Array(data.length);
+                for (var i = 0; i < data.length; i += 16) {
+                    var d = data.slice(i, i + 16);
+                    var xor = XOR(d, iv);
+                    var out = new Array(BLOCK_SIZE);
+                    processBlock(xor, 0, out, 0);
+                    Copy(out, 0, output, i, BLOCK_SIZE);
+                    iv = out;
+                }
+                return output;
+            },
+
+            decryptWithCBC: function (data, key, iv) {
+            	WorkingKey = generateWorkingKey(key, DECRYPT_MODE);
+            	encryption = DECRYPT_MODE;
+                var output = new Array(data.length);
+                for (var i = 0; i < data.length; i += 16) {
+                    var d = data.slice(i, i + 16);
+                    var out = new Array(BLOCK_SIZE);
+                    processBlock(d, 0, out, 0);
+                    var xor = XOR(out, iv);
+                    iv = d;
+                    Copy(xor, 0, output, i, BLOCK_SIZE);
+                }
+                return output;
+
+            }
+       	}
+    }());
+}());;
+    
 
     
+        /*! JSEncrypt v2.3.1 | https://npmcdn.com/jsencrypt@2.3.1/LICENSE.txt */
+// (function (root, factory) {
+//   if (typeof define === 'function' && define.amd) {
+//     // AMD
+//     define(['exports'], factory);
+//   } else if (typeof exports === 'object' && typeof exports.nodeName !== 'string') {
+//     // Node, CommonJS-like
+//     factory(module.exports);
+//   } else {
+//     factory(root);
+//   }
+// })(this, function (exports) {
+(function (exports) {
+
+  // Copyright (c) 2005  Tom Wu
+// All Rights Reserved.
+// See "LICENSE" for details.
+
+// Basic JavaScript BN library - subset useful for RSA encryption.
+
+// Bits per digit
+var dbits;
+
+// JavaScript engine analysis
+var canary = 0xdeadbeefcafe;
+var j_lm = ((canary&0xffffff)==0xefcafe);
+
+//start replace
+function BigInteger(a, b, c) {
+  if (!(this instanceof BigInteger))
+    return new BigInteger(a, b, c)
+
+  if (a != null) {
+    if ("number" == typeof a) this.fromNumber(a, b, c)
+    else if (b == null && "string" != typeof a) this.fromString(a, 256)
+    else this.fromString(a, b)
+  }
+}
+
+var proto = BigInteger.prototype
+
+// duck-typed isBigInteger
+/*proto.__bigi = require('package.json').version
+BigInteger.isBigInteger = function (obj, check_ver) {
+  return obj && obj.__bigi && (!check_ver || obj.__bigi === proto.__bigi)
+}*/
+
+// Bits per digit
+var dbits
+
+// am: Compute w_j += (x*this_i), propagate carries,
+// c is initial carry, returns final carry.
+// c < 3*dvalue, x < 2*dvalue, this_i < dvalue
+// We need to select the fastest one that works in this environment.
+
+// am1: use a single mult and divide to get the high bits,
+// max digit bits should be 26 because
+// max internal value = 2*dvalue^2-2*dvalue (< 2^53)
+function am1(i, x, w, j, c, n) {
+  while (--n >= 0) {
+    var v = x * this[i++] + w[j] + c
+    c = Math.floor(v / 0x4000000)
+    w[j++] = v & 0x3ffffff
+  }
+  return c
+}
+// am2 avoids a big mult-and-extract completely.
+// Max digit bits should be <= 30 because we do bitwise ops
+// on values up to 2*hdvalue^2-hdvalue-1 (< 2^31)
+function am2(i, x, w, j, c, n) {
+  var xl = x & 0x7fff,
+    xh = x >> 15
+  while (--n >= 0) {
+    var l = this[i] & 0x7fff
+    var h = this[i++] >> 15
+    var m = xh * l + h * xl
+    l = xl * l + ((m & 0x7fff) << 15) + w[j] + (c & 0x3fffffff)
+    c = (l >>> 30) + (m >>> 15) + xh * h + (c >>> 30)
+    w[j++] = l & 0x3fffffff
+  }
+  return c
+}
+// Alternately, set max digit bits to 28 since some
+// browsers slow down when dealing with 32-bit numbers.
+function am3(i, x, w, j, c, n) {
+  var xl = x & 0x3fff,
+    xh = x >> 14
+  while (--n >= 0) {
+    var l = this[i] & 0x3fff
+    var h = this[i++] >> 14
+    var m = xh * l + h * xl
+    l = xl * l + ((m & 0x3fff) << 14) + w[j] + c
+    c = (l >> 28) + (m >> 14) + xh * h
+    w[j++] = l & 0xfffffff
+  }
+  return c
+}
+
+// wtf?
+BigInteger.prototype.am = am1
+dbits = 26
+
+BigInteger.prototype.DB = dbits
+BigInteger.prototype.DM = ((1 << dbits) - 1)
+var DV = BigInteger.prototype.DV = (1 << dbits)
+
+var BI_FP = 52
+BigInteger.prototype.FV = Math.pow(2, BI_FP)
+BigInteger.prototype.F1 = BI_FP - dbits
+BigInteger.prototype.F2 = 2 * dbits - BI_FP
+
+// Digit conversions
+var BI_RM = "0123456789abcdefghijklmnopqrstuvwxyz"
+var BI_RC = new Array()
+var rr, vv
+rr = "0".charCodeAt(0)
+for (vv = 0; vv <= 9; ++vv) BI_RC[rr++] = vv
+rr = "a".charCodeAt(0)
+for (vv = 10; vv < 36; ++vv) BI_RC[rr++] = vv
+rr = "A".charCodeAt(0)
+for (vv = 10; vv < 36; ++vv) BI_RC[rr++] = vv
+
+function int2char(n) {
+  return BI_RM.charAt(n)
+}
+
+function intAt(s, i) {
+  var c = BI_RC[s.charCodeAt(i)]
+  return (c == null) ? -1 : c
+}
+
+// (protected) copy this to r
+function bnpCopyTo(r) {
+  for (var i = this.t - 1; i >= 0; --i) r[i] = this[i]
+  r.t = this.t
+  r.s = this.s
+}
+
+// (protected) set from integer value x, -DV <= x < DV
+function bnpFromInt(x) {
+  this.t = 1
+  this.s = (x < 0) ? -1 : 0
+  if (x > 0) this[0] = x
+  else if (x < -1) this[0] = x + DV
+  else this.t = 0
+}
+
+// return bigint initialized to value
+function nbv(i) {
+  var r = new BigInteger()
+  r.fromInt(i)
+  return r
+}
+
+// (protected) set from string and radix
+function bnpFromString(s, b) {
+  var self = this
+
+  var k
+  if (b == 16) k = 4
+  else if (b == 8) k = 3
+  else if (b == 256) k = 8; // byte array
+  else if (b == 2) k = 1
+  else if (b == 32) k = 5
+  else if (b == 4) k = 2
+  else {
+    self.fromRadix(s, b)
+    return
+  }
+  self.t = 0
+  self.s = 0
+  var i = s.length,
+    mi = false,
+    sh = 0
+  while (--i >= 0) {
+    var x = (k == 8) ? s[i] & 0xff : intAt(s, i)
+    if (x < 0) {
+      if (s.charAt(i) == "-") mi = true
+      continue
+    }
+    mi = false
+    if (sh == 0)
+      self[self.t++] = x
+    else if (sh + k > self.DB) {
+      self[self.t - 1] |= (x & ((1 << (self.DB - sh)) - 1)) << sh
+      self[self.t++] = (x >> (self.DB - sh))
+    } else
+      self[self.t - 1] |= x << sh
+    sh += k
+    if (sh >= self.DB) sh -= self.DB
+  }
+  if (k == 8 && (s[0] & 0x80) != 0) {
+    self.s = -1
+    if (sh > 0) self[self.t - 1] |= ((1 << (self.DB - sh)) - 1) << sh
+  }
+  self.clamp()
+  if (mi) BigInteger.ZERO.subTo(self, self)
+}
+
+// (protected) clamp off excess high words
+function bnpClamp() {
+  var c = this.s & this.DM
+  while (this.t > 0 && this[this.t - 1] == c)--this.t
+}
+
+// (public) return string representation in given radix
+function bnToString(b) {
+  var self = this
+  if (self.s < 0) return "-" + self.negate()
+    .toString(b)
+  var k
+  if (b == 16) k = 4
+  else if (b == 8) k = 3
+  else if (b == 2) k = 1
+  else if (b == 32) k = 5
+  else if (b == 4) k = 2
+  else return self.toRadix(b)
+  var km = (1 << k) - 1,
+    d, m = false,
+    r = "",
+    i = self.t
+  var p = self.DB - (i * self.DB) % k
+  if (i-- > 0) {
+    if (p < self.DB && (d = self[i] >> p) > 0) {
+      m = true
+      r = int2char(d)
+    }
+    while (i >= 0) {
+      if (p < k) {
+        d = (self[i] & ((1 << p) - 1)) << (k - p)
+        d |= self[--i] >> (p += self.DB - k)
+      } else {
+        d = (self[i] >> (p -= k)) & km
+        if (p <= 0) {
+          p += self.DB
+          --i
+        }
+      }
+      if (d > 0) m = true
+      if (m) r += int2char(d)
+    }
+  }
+  return m ? r : "0"
+}
+
+// (public) -this
+function bnNegate() {
+  var r = new BigInteger()
+  BigInteger.ZERO.subTo(this, r)
+  return r
+}
+
+// (public) |this|
+function bnAbs() {
+  return (this.s < 0) ? this.negate() : this
+}
+
+// (public) return + if this > a, - if this < a, 0 if equal
+function bnCompareTo(a) {
+  var r = this.s - a.s
+  if (r != 0) return r
+  var i = this.t
+  r = i - a.t
+  if (r != 0) return (this.s < 0) ? -r : r
+  while (--i >= 0)
+    if ((r = this[i] - a[i]) != 0) return r
+  return 0
+}
+
+// returns bit length of the integer x
+function nbits(x) {
+  var r = 1,
+    t
+  if ((t = x >>> 16) != 0) {
+    x = t
+    r += 16
+  }
+  if ((t = x >> 8) != 0) {
+    x = t
+    r += 8
+  }
+  if ((t = x >> 4) != 0) {
+    x = t
+    r += 4
+  }
+  if ((t = x >> 2) != 0) {
+    x = t
+    r += 2
+  }
+  if ((t = x >> 1) != 0) {
+    x = t
+    r += 1
+  }
+  return r
+}
+
+// (public) return the number of bits in "this"
+function bnBitLength() {
+  if (this.t <= 0) return 0
+  return this.DB * (this.t - 1) + nbits(this[this.t - 1] ^ (this.s & this.DM))
+}
+
+// (public) return the number of bytes in "this"
+function bnByteLength() {
+  return this.bitLength() >> 3
+}
+
+// (protected) r = this << n*DB
+function bnpDLShiftTo(n, r) {
+  var i
+  for (i = this.t - 1; i >= 0; --i) r[i + n] = this[i]
+  for (i = n - 1; i >= 0; --i) r[i] = 0
+  r.t = this.t + n
+  r.s = this.s
+}
+
+// (protected) r = this >> n*DB
+function bnpDRShiftTo(n, r) {
+  for (var i = n; i < this.t; ++i) r[i - n] = this[i]
+  r.t = Math.max(this.t - n, 0)
+  r.s = this.s
+}
+
+// (protected) r = this << n
+function bnpLShiftTo(n, r) {
+  var self = this
+  var bs = n % self.DB
+  var cbs = self.DB - bs
+  var bm = (1 << cbs) - 1
+  var ds = Math.floor(n / self.DB),
+    c = (self.s << bs) & self.DM,
+    i
+  for (i = self.t - 1; i >= 0; --i) {
+    r[i + ds + 1] = (self[i] >> cbs) | c
+    c = (self[i] & bm) << bs
+  }
+  for (i = ds - 1; i >= 0; --i) r[i] = 0
+  r[ds] = c
+  r.t = self.t + ds + 1
+  r.s = self.s
+  r.clamp()
+}
+
+// (protected) r = this >> n
+function bnpRShiftTo(n, r) {
+  var self = this
+  r.s = self.s
+  var ds = Math.floor(n / self.DB)
+  if (ds >= self.t) {
+    r.t = 0
+    return
+  }
+  var bs = n % self.DB
+  var cbs = self.DB - bs
+  var bm = (1 << bs) - 1
+  r[0] = self[ds] >> bs
+  for (var i = ds + 1; i < self.t; ++i) {
+    r[i - ds - 1] |= (self[i] & bm) << cbs
+    r[i - ds] = self[i] >> bs
+  }
+  if (bs > 0) r[self.t - ds - 1] |= (self.s & bm) << cbs
+  r.t = self.t - ds
+  r.clamp()
+}
+
+// (protected) r = this - a
+function bnpSubTo(a, r) {
+  var self = this
+  var i = 0,
+    c = 0,
+    m = Math.min(a.t, self.t)
+  while (i < m) {
+    c += self[i] - a[i]
+    r[i++] = c & self.DM
+    c >>= self.DB
+  }
+  if (a.t < self.t) {
+    c -= a.s
+    while (i < self.t) {
+      c += self[i]
+      r[i++] = c & self.DM
+      c >>= self.DB
+    }
+    c += self.s
+  } else {
+    c += self.s
+    while (i < a.t) {
+      c -= a[i]
+      r[i++] = c & self.DM
+      c >>= self.DB
+    }
+    c -= a.s
+  }
+  r.s = (c < 0) ? -1 : 0
+  if (c < -1) r[i++] = self.DV + c
+  else if (c > 0) r[i++] = c
+  r.t = i
+  r.clamp()
+}
+
+// (protected) r = this * a, r != this,a (HAC 14.12)
+// "this" should be the larger one if appropriate.
+function bnpMultiplyTo(a, r) {
+  var x = this.abs(),
+    y = a.abs()
+  var i = x.t
+  r.t = i + y.t
+  while (--i >= 0) r[i] = 0
+  for (i = 0; i < y.t; ++i) r[i + x.t] = x.am(0, y[i], r, i, 0, x.t)
+  r.s = 0
+  r.clamp()
+  if (this.s != a.s) BigInteger.ZERO.subTo(r, r)
+}
+
+// (protected) r = this^2, r != this (HAC 14.16)
+function bnpSquareTo(r) {
+  var x = this.abs()
+  var i = r.t = 2 * x.t
+  while (--i >= 0) r[i] = 0
+  for (i = 0; i < x.t - 1; ++i) {
+    var c = x.am(i, x[i], r, 2 * i, 0, 1)
+    if ((r[i + x.t] += x.am(i + 1, 2 * x[i], r, 2 * i + 1, c, x.t - i - 1)) >= x.DV) {
+      r[i + x.t] -= x.DV
+      r[i + x.t + 1] = 1
+    }
+  }
+  if (r.t > 0) r[r.t - 1] += x.am(i, x[i], r, 2 * i, 0, 1)
+  r.s = 0
+  r.clamp()
+}
+
+// (protected) divide this by m, quotient and remainder to q, r (HAC 14.20)
+// r != q, this != m.  q or r may be null.
+function bnpDivRemTo(m, q, r) {
+  var self = this
+  var pm = m.abs()
+  if (pm.t <= 0) return
+  var pt = self.abs()
+  if (pt.t < pm.t) {
+    if (q != null) q.fromInt(0)
+    if (r != null) self.copyTo(r)
+    return
+  }
+  if (r == null) r = new BigInteger()
+  var y = new BigInteger(),
+    ts = self.s,
+    ms = m.s
+  var nsh = self.DB - nbits(pm[pm.t - 1]); // normalize modulus
+  if (nsh > 0) {
+    pm.lShiftTo(nsh, y)
+    pt.lShiftTo(nsh, r)
+  } else {
+    pm.copyTo(y)
+    pt.copyTo(r)
+  }
+  var ys = y.t
+  var y0 = y[ys - 1]
+  if (y0 == 0) return
+  var yt = y0 * (1 << self.F1) + ((ys > 1) ? y[ys - 2] >> self.F2 : 0)
+  var d1 = self.FV / yt,
+    d2 = (1 << self.F1) / yt,
+    e = 1 << self.F2
+  var i = r.t,
+    j = i - ys,
+    t = (q == null) ? new BigInteger() : q
+  y.dlShiftTo(j, t)
+  if (r.compareTo(t) >= 0) {
+    r[r.t++] = 1
+    r.subTo(t, r)
+  }
+  BigInteger.ONE.dlShiftTo(ys, t)
+  t.subTo(y, y); // "negative" y so we can replace sub with am later
+  while (y.t < ys) y[y.t++] = 0
+  while (--j >= 0) {
+    // Estimate quotient digit
+    var qd = (r[--i] == y0) ? self.DM : Math.floor(r[i] * d1 + (r[i - 1] + e) * d2)
+    if ((r[i] += y.am(0, qd, r, j, 0, ys)) < qd) { // Try it out
+      y.dlShiftTo(j, t)
+      r.subTo(t, r)
+      while (r[i] < --qd) r.subTo(t, r)
+    }
+  }
+  if (q != null) {
+    r.drShiftTo(ys, q)
+    if (ts != ms) BigInteger.ZERO.subTo(q, q)
+  }
+  r.t = ys
+  r.clamp()
+  if (nsh > 0) r.rShiftTo(nsh, r); // Denormalize remainder
+  if (ts < 0) BigInteger.ZERO.subTo(r, r)
+}
+
+// (public) this mod a
+function bnMod(a) {
+  var r = new BigInteger()
+  this.abs()
+    .divRemTo(a, null, r)
+  if (this.s < 0 && r.compareTo(BigInteger.ZERO) > 0) a.subTo(r, r)
+  return r
+}
+
+// Modular reduction using "classic" algorithm
+function Classic(m) {
+  this.m = m
+}
+
+function cConvert(x) {
+  if (x.s < 0 || x.compareTo(this.m) >= 0) return x.mod(this.m)
+  else return x
+}
+
+function cRevert(x) {
+  return x
+}
+
+function cReduce(x) {
+  x.divRemTo(this.m, null, x)
+}
+
+function cMulTo(x, y, r) {
+  x.multiplyTo(y, r)
+  this.reduce(r)
+}
+
+function cSqrTo(x, r) {
+  x.squareTo(r)
+  this.reduce(r)
+}
+
+Classic.prototype.convert = cConvert
+Classic.prototype.revert = cRevert
+Classic.prototype.reduce = cReduce
+Classic.prototype.mulTo = cMulTo
+Classic.prototype.sqrTo = cSqrTo
+
+// (protected) return "-1/this % 2^DB"; useful for Mont. reduction
+// justification:
+//         xy == 1 (mod m)
+//         xy =  1+km
+//   xy(2-xy) = (1+km)(1-km)
+// x[y(2-xy)] = 1-k^2m^2
+// x[y(2-xy)] == 1 (mod m^2)
+// if y is 1/x mod m, then y(2-xy) is 1/x mod m^2
+// should reduce x and y(2-xy) by m^2 at each step to keep size bounded.
+// JS multiply "overflows" differently from C/C++, so care is needed here.
+function bnpInvDigit() {
+  if (this.t < 1) return 0
+  var x = this[0]
+  if ((x & 1) == 0) return 0
+  var y = x & 3; // y == 1/x mod 2^2
+  y = (y * (2 - (x & 0xf) * y)) & 0xf; // y == 1/x mod 2^4
+  y = (y * (2 - (x & 0xff) * y)) & 0xff; // y == 1/x mod 2^8
+  y = (y * (2 - (((x & 0xffff) * y) & 0xffff))) & 0xffff; // y == 1/x mod 2^16
+  // last step - calculate inverse mod DV directly
+  // assumes 16 < DB <= 32 and assumes ability to handle 48-bit ints
+  y = (y * (2 - x * y % this.DV)) % this.DV; // y == 1/x mod 2^dbits
+  // we really want the negative inverse, and -DV < y < DV
+  return (y > 0) ? this.DV - y : -y
+}
+
+// Montgomery reduction
+function Montgomery(m) {
+  this.m = m
+  this.mp = m.invDigit()
+  this.mpl = this.mp & 0x7fff
+  this.mph = this.mp >> 15
+  this.um = (1 << (m.DB - 15)) - 1
+  this.mt2 = 2 * m.t
+}
+
+// xR mod m
+function montConvert(x) {
+  var r = new BigInteger()
+  x.abs()
+    .dlShiftTo(this.m.t, r)
+  r.divRemTo(this.m, null, r)
+  if (x.s < 0 && r.compareTo(BigInteger.ZERO) > 0) this.m.subTo(r, r)
+  return r
+}
+
+// x/R mod m
+function montRevert(x) {
+  var r = new BigInteger()
+  x.copyTo(r)
+  this.reduce(r)
+  return r
+}
+
+// x = x/R mod m (HAC 14.32)
+function montReduce(x) {
+  while (x.t <= this.mt2) // pad x so am has enough room later
+    x[x.t++] = 0
+  for (var i = 0; i < this.m.t; ++i) {
+    // faster way of calculating u0 = x[i]*mp mod DV
+    var j = x[i] & 0x7fff
+    var u0 = (j * this.mpl + (((j * this.mph + (x[i] >> 15) * this.mpl) & this.um) << 15)) & x.DM
+    // use am to combine the multiply-shift-add into one call
+    j = i + this.m.t
+    x[j] += this.m.am(0, u0, x, i, 0, this.m.t)
+    // propagate carry
+    while (x[j] >= x.DV) {
+      x[j] -= x.DV
+      x[++j]++
+    }
+  }
+  x.clamp()
+  x.drShiftTo(this.m.t, x)
+  if (x.compareTo(this.m) >= 0) x.subTo(this.m, x)
+}
+
+// r = "x^2/R mod m"; x != r
+function montSqrTo(x, r) {
+  x.squareTo(r)
+  this.reduce(r)
+}
+
+// r = "xy/R mod m"; x,y != r
+function montMulTo(x, y, r) {
+  x.multiplyTo(y, r)
+  this.reduce(r)
+}
+
+Montgomery.prototype.convert = montConvert
+Montgomery.prototype.revert = montRevert
+Montgomery.prototype.reduce = montReduce
+Montgomery.prototype.mulTo = montMulTo
+Montgomery.prototype.sqrTo = montSqrTo
+
+// (protected) true iff this is even
+function bnpIsEven() {
+  return ((this.t > 0) ? (this[0] & 1) : this.s) == 0
+}
+
+// (protected) this^e, e < 2^32, doing sqr and mul with "r" (HAC 14.79)
+function bnpExp(e, z) {
+  if (e > 0xffffffff || e < 1) return BigInteger.ONE
+  var r = new BigInteger(),
+    r2 = new BigInteger(),
+    g = z.convert(this),
+    i = nbits(e) - 1
+  g.copyTo(r)
+  while (--i >= 0) {
+    z.sqrTo(r, r2)
+    if ((e & (1 << i)) > 0) z.mulTo(r2, g, r)
+    else {
+      var t = r
+      r = r2
+      r2 = t
+    }
+  }
+  return z.revert(r)
+}
+
+// (public) this^e % m, 0 <= e < 2^32
+function bnModPowInt(e, m) {
+  var z
+  if (e < 256 || m.isEven()) z = new Classic(m)
+  else z = new Montgomery(m)
+  return this.exp(e, z)
+}
+
+// (public) this^e % m, 0 <= e < 2^32   add by wx 20190118
+function bnModPowInt_Custom(e, m) {
+  if (e > 0xffffffff || e < 1) 
+    return BigInteger.ONE
+    var eBitString = e.toString(2);
+    var bitLen = eBitString.length;
+    var temps = new Array();
+    for (var i = 0; i < bitLen; i++){
+      var temp;
+      if (i == 0) {
+        temp = this.mod(m);
+      }
+      else{
+        temp = (temps[i - 1].multiply(temps[i - 1])).mod(m);
+      }
+      temps.push(temp);
+    }
+    var result;
+    for (var i = 0; i < bitLen; i++) {
+      var bitValue = parseInt(eBitString.charAt(bitLen - i - 1));
+      if (bitValue == 1) {
+        if (result == undefined) {
+          result = temps[i];
+        }else{
+          result = (result.multiply(temps[i])).mod(m)
+        }
+      }
+    }
+    return result;
+}
+
+// protected
+proto.copyTo = bnpCopyTo
+proto.fromInt = bnpFromInt
+proto.fromString = bnpFromString
+proto.clamp = bnpClamp
+proto.dlShiftTo = bnpDLShiftTo
+proto.drShiftTo = bnpDRShiftTo
+proto.lShiftTo = bnpLShiftTo
+proto.rShiftTo = bnpRShiftTo
+proto.subTo = bnpSubTo
+proto.multiplyTo = bnpMultiplyTo
+proto.squareTo = bnpSquareTo
+proto.divRemTo = bnpDivRemTo
+proto.invDigit = bnpInvDigit
+proto.isEven = bnpIsEven
+proto.exp = bnpExp
+
+// public
+proto.toString = bnToString
+proto.negate = bnNegate
+proto.abs = bnAbs
+proto.compareTo = bnCompareTo
+proto.bitLength = bnBitLength
+proto.byteLength = bnByteLength
+proto.mod = bnMod
+proto.modPowInt = bnModPowInt_Custom//bnModPowInt//
+
+// (public)
+function bnClone() {
+  var r = new BigInteger()
+  this.copyTo(r)
+  return r
+}
+
+// (public) return value as integer
+function bnIntValue() {
+  if (this.s < 0) {
+    if (this.t == 1) return this[0] - this.DV
+    else if (this.t == 0) return -1
+  } else if (this.t == 1) return this[0]
+  else if (this.t == 0) return 0
+  // assumes 16 < DB < 32
+  return ((this[1] & ((1 << (32 - this.DB)) - 1)) << this.DB) | this[0]
+}
+
+// (public) return value as byte
+function bnByteValue() {
+  return (this.t == 0) ? this.s : (this[0] << 24) >> 24
+}
+
+// (public) return value as short (assumes DB>=16)
+function bnShortValue() {
+  return (this.t == 0) ? this.s : (this[0] << 16) >> 16
+}
+
+// (protected) return x s.t. r^x < DV
+function bnpChunkSize(r) {
+  return Math.floor(Math.LN2 * this.DB / Math.log(r))
+}
+
+// (public) 0 if this == 0, 1 if this > 0
+function bnSigNum() {
+  if (this.s < 0) return -1
+  else if (this.t <= 0 || (this.t == 1 && this[0] <= 0)) return 0
+  else return 1
+}
+
+// (protected) convert to radix string
+function bnpToRadix(b) {
+  if (b == null) b = 10
+  if (this.signum() == 0 || b < 2 || b > 36) return "0"
+  var cs = this.chunkSize(b)
+  var a = Math.pow(b, cs)
+  var d = nbv(a),
+    y = new BigInteger(),
+    z = new BigInteger(),
+    r = ""
+  this.divRemTo(d, y, z)
+  while (y.signum() > 0) {
+    r = (a + z.intValue())
+      .toString(b)
+      .substr(1) + r
+    y.divRemTo(d, y, z)
+  }
+  return z.intValue()
+    .toString(b) + r
+}
+
+// (protected) convert from radix string
+function bnpFromRadix(s, b) {
+  var self = this
+  self.fromInt(0)
+  if (b == null) b = 10
+  var cs = self.chunkSize(b)
+  var d = Math.pow(b, cs),
+    mi = false,
+    j = 0,
+    w = 0
+  for (var i = 0; i < s.length; ++i) {
+    var x = intAt(s, i)
+    if (x < 0) {
+      if (s.charAt(i) == "-" && self.signum() == 0) mi = true
+      continue
+    }
+    w = b * w + x
+    if (++j >= cs) {
+      self.dMultiply(d)
+      self.dAddOffset(w, 0)
+      j = 0
+      w = 0
+    }
+  }
+  if (j > 0) {
+    self.dMultiply(Math.pow(b, j))
+    self.dAddOffset(w, 0)
+  }
+  if (mi) BigInteger.ZERO.subTo(self, self)
+}
+
+// (protected) alternate constructor
+function bnpFromNumber(a, b, c) {
+  var self = this
+  if ("number" == typeof b) {
+    // new BigInteger(int,int,RNG)
+    if (a < 2) self.fromInt(1)
+    else {
+      self.fromNumber(a, c)
+      if (!self.testBit(a - 1)) // force MSB set
+        self.bitwiseTo(BigInteger.ONE.shiftLeft(a - 1), op_or, self)
+      if (self.isEven()) self.dAddOffset(1, 0); // force odd
+      while (!self.isProbablePrime(b)) {
+        self.dAddOffset(2, 0)
+        if (self.bitLength() > a) self.subTo(BigInteger.ONE.shiftLeft(a - 1), self)
+      }
+    }
+  } else {
+    // new BigInteger(int,RNG)
+    var x = new Array(),
+      t = a & 7
+    x.length = (a >> 3) + 1
+    b.nextBytes(x)
+    if (t > 0) x[0] &= ((1 << t) - 1)
+    else x[0] = 0
+    self.fromString(x, 256)
+  }
+}
+
+// (public) convert to bigendian byte array
+function bnToByteArray() {
+  var self = this
+  var i = self.t,
+    r = new Array()
+  r[0] = self.s
+  var p = self.DB - (i * self.DB) % 8,
+    d, k = 0
+  if (i-- > 0) {
+    if (p < self.DB && (d = self[i] >> p) != (self.s & self.DM) >> p)
+      r[k++] = d | (self.s << (self.DB - p))
+    while (i >= 0) {
+      if (p < 8) {
+        d = (self[i] & ((1 << p) - 1)) << (8 - p)
+        d |= self[--i] >> (p += self.DB - 8)
+      } else {
+        d = (self[i] >> (p -= 8)) & 0xff
+        if (p <= 0) {
+          p += self.DB
+          --i
+        }
+      }
+      if ((d & 0x80) != 0) d |= -256
+      if (k === 0 && (self.s & 0x80) != (d & 0x80))++k
+      if (k > 0 || d != self.s) r[k++] = d
+    }
+  }
+  return r
+}
+
+function bnEquals(a) {
+  return (this.compareTo(a) == 0)
+}
+
+function bnMin(a) {
+  return (this.compareTo(a) < 0) ? this : a
+}
+
+function bnMax(a) {
+  return (this.compareTo(a) > 0) ? this : a
+}
+
+// (protected) r = this op a (bitwise)
+function bnpBitwiseTo(a, op, r) {
+  var self = this
+  var i, f, m = Math.min(a.t, self.t)
+  for (i = 0; i < m; ++i) r[i] = op(self[i], a[i])
+  if (a.t < self.t) {
+    f = a.s & self.DM
+    for (i = m; i < self.t; ++i) r[i] = op(self[i], f)
+    r.t = self.t
+  } else {
+    f = self.s & self.DM
+    for (i = m; i < a.t; ++i) r[i] = op(f, a[i])
+    r.t = a.t
+  }
+  r.s = op(self.s, a.s)
+  r.clamp()
+}
+
+// (public) this & a
+function op_and(x, y) {
+  return x & y
+}
+
+function bnAnd(a) {
+  var r = new BigInteger()
+  this.bitwiseTo(a, op_and, r)
+  return r
+}
+
+// (public) this | a
+function op_or(x, y) {
+  return x | y
+}
+
+function bnOr(a) {
+  var r = new BigInteger()
+  this.bitwiseTo(a, op_or, r)
+  return r
+}
+
+// (public) this ^ a
+function op_xor(x, y) {
+  return x ^ y
+}
+
+function bnXor(a) {
+  var r = new BigInteger()
+  this.bitwiseTo(a, op_xor, r)
+  return r
+}
+
+// (public) this & ~a
+function op_andnot(x, y) {
+  return x & ~y
+}
+
+function bnAndNot(a) {
+  var r = new BigInteger()
+  this.bitwiseTo(a, op_andnot, r)
+  return r
+}
+
+// (public) ~this
+function bnNot() {
+  var r = new BigInteger()
+  for (var i = 0; i < this.t; ++i) r[i] = this.DM & ~this[i]
+  r.t = this.t
+  r.s = ~this.s
+  return r
+}
+
+// (public) this << n
+function bnShiftLeft(n) {
+  var r = new BigInteger()
+  if (n < 0) this.rShiftTo(-n, r)
+  else this.lShiftTo(n, r)
+  return r
+}
+
+// (public) this >> n
+function bnShiftRight(n) {
+  var r = new BigInteger()
+  if (n < 0) this.lShiftTo(-n, r)
+  else this.rShiftTo(n, r)
+  return r
+}
+
+// return index of lowest 1-bit in x, x < 2^31
+function lbit(x) {
+  if (x == 0) return -1
+  var r = 0
+  if ((x & 0xffff) == 0) {
+    x >>= 16
+    r += 16
+  }
+  if ((x & 0xff) == 0) {
+    x >>= 8
+    r += 8
+  }
+  if ((x & 0xf) == 0) {
+    x >>= 4
+    r += 4
+  }
+  if ((x & 3) == 0) {
+    x >>= 2
+    r += 2
+  }
+  if ((x & 1) == 0)++r
+  return r
+}
+
+// (public) returns index of lowest 1-bit (or -1 if none)
+function bnGetLowestSetBit() {
+  for (var i = 0; i < this.t; ++i)
+    if (this[i] != 0) return i * this.DB + lbit(this[i])
+  if (this.s < 0) return this.t * this.DB
+  return -1
+}
+
+// return number of 1 bits in x
+function cbit(x) {
+  var r = 0
+  while (x != 0) {
+    x &= x - 1
+    ++r
+  }
+  return r
+}
+
+// (public) return number of set bits
+function bnBitCount() {
+  var r = 0,
+    x = this.s & this.DM
+  for (var i = 0; i < this.t; ++i) r += cbit(this[i] ^ x)
+  return r
+}
+
+// (public) true iff nth bit is set
+function bnTestBit(n) {
+  var j = Math.floor(n / this.DB)
+  if (j >= this.t) return (this.s != 0)
+  return ((this[j] & (1 << (n % this.DB))) != 0)
+}
+
+// (protected) this op (1<<n)
+function bnpChangeBit(n, op) {
+  var r = BigInteger.ONE.shiftLeft(n)
+  this.bitwiseTo(r, op, r)
+  return r
+}
+
+// (public) this | (1<<n)
+function bnSetBit(n) {
+  return this.changeBit(n, op_or)
+}
+
+// (public) this & ~(1<<n)
+function bnClearBit(n) {
+  return this.changeBit(n, op_andnot)
+}
+
+// (public) this ^ (1<<n)
+function bnFlipBit(n) {
+  return this.changeBit(n, op_xor)
+}
+
+// (protected) r = this + a
+function bnpAddTo(a, r) {
+  var self = this
+
+  var i = 0,
+    c = 0,
+    m = Math.min(a.t, self.t)
+  while (i < m) {
+    c += self[i] + a[i]
+    r[i++] = c & self.DM
+    c >>= self.DB
+  }
+  if (a.t < self.t) {
+    c += a.s
+    while (i < self.t) {
+      c += self[i]
+      r[i++] = c & self.DM
+      c >>= self.DB
+    }
+    c += self.s
+  } else {
+    c += self.s
+    while (i < a.t) {
+      c += a[i]
+      r[i++] = c & self.DM
+      c >>= self.DB
+    }
+    c += a.s
+  }
+  r.s = (c < 0) ? -1 : 0
+  if (c > 0) r[i++] = c
+  else if (c < -1) r[i++] = self.DV + c
+  r.t = i
+  r.clamp()
+}
+
+// (public) this + a
+function bnAdd(a) {
+  var r = new BigInteger()
+  this.addTo(a, r)
+  return r
+}
+
+// (public) this - a
+function bnSubtract(a) {
+  var r = new BigInteger()
+  this.subTo(a, r)
+  return r
+}
+
+// (public) this * a
+function bnMultiply(a) {
+  var r = new BigInteger()
+  this.multiplyTo(a, r)
+  return r
+}
+
+// (public) this^2
+function bnSquare() {
+  var r = new BigInteger()
+  this.squareTo(r)
+  return r
+}
+
+// (public) this / a
+function bnDivide(a) {
+  var r = new BigInteger()
+  this.divRemTo(a, r, null)
+  return r
+}
+
+// (public) this % a
+function bnRemainder(a) {
+  var r = new BigInteger()
+  this.divRemTo(a, null, r)
+  return r
+}
+
+// (public) [this/a,this%a]
+function bnDivideAndRemainder(a) {
+  var q = new BigInteger(),
+    r = new BigInteger()
+  this.divRemTo(a, q, r)
+  return new Array(q, r)
+}
+
+// (protected) this *= n, this >= 0, 1 < n < DV
+function bnpDMultiply(n) {
+  this[this.t] = this.am(0, n - 1, this, 0, 0, this.t)
+  ++this.t
+  this.clamp()
+}
+
+// (protected) this += n << w words, this >= 0
+function bnpDAddOffset(n, w) {
+  if (n == 0) return
+  while (this.t <= w) this[this.t++] = 0
+  this[w] += n
+  while (this[w] >= this.DV) {
+    this[w] -= this.DV
+    if (++w >= this.t) this[this.t++] = 0
+    ++this[w]
+  }
+}
+
+// A "null" reducer
+function NullExp() {}
+
+function nNop(x) {
+  return x
+}
+
+function nMulTo(x, y, r) {
+  x.multiplyTo(y, r)
+}
+
+function nSqrTo(x, r) {
+  x.squareTo(r)
+}
+
+NullExp.prototype.convert = nNop
+NullExp.prototype.revert = nNop
+NullExp.prototype.mulTo = nMulTo
+NullExp.prototype.sqrTo = nSqrTo
+
+// (public) this^e
+function bnPow(e) {
+  return this.exp(e, new NullExp())
+}
+
+// (protected) r = lower n words of "this * a", a.t <= n
+// "this" should be the larger one if appropriate.
+function bnpMultiplyLowerTo(a, n, r) {
+  var i = Math.min(this.t + a.t, n)
+  r.s = 0; // assumes a,this >= 0
+  r.t = i
+  while (i > 0) r[--i] = 0
+  var j
+  for (j = r.t - this.t; i < j; ++i) r[i + this.t] = this.am(0, a[i], r, i, 0, this.t)
+  for (j = Math.min(a.t, n); i < j; ++i) this.am(0, a[i], r, i, 0, n - i)
+  r.clamp()
+}
+
+// (protected) r = "this * a" without lower n words, n > 0
+// "this" should be the larger one if appropriate.
+function bnpMultiplyUpperTo(a, n, r) {
+  --n
+  var i = r.t = this.t + a.t - n
+  r.s = 0; // assumes a,this >= 0
+  while (--i >= 0) r[i] = 0
+  for (i = Math.max(n - this.t, 0); i < a.t; ++i)
+    r[this.t + i - n] = this.am(n - i, a[i], r, 0, 0, this.t + i - n)
+  r.clamp()
+  r.drShiftTo(1, r)
+}
+
+// Barrett modular reduction
+function Barrett(m) {
+  // setup Barrett
+  this.r2 = new BigInteger()
+  this.q3 = new BigInteger()
+  BigInteger.ONE.dlShiftTo(2 * m.t, this.r2)
+  this.mu = this.r2.divide(m)
+  this.m = m
+}
+
+function barrettConvert(x) {
+  if (x.s < 0 || x.t > 2 * this.m.t) return x.mod(this.m)
+  else if (x.compareTo(this.m) < 0) return x
+  else {
+    var r = new BigInteger()
+    x.copyTo(r)
+    this.reduce(r)
+    return r
+  }
+}
+
+function barrettRevert(x) {
+  return x
+}
+
+// x = x mod m (HAC 14.42)
+function barrettReduce(x) {
+  var self = this
+  x.drShiftTo(self.m.t - 1, self.r2)
+  if (x.t > self.m.t + 1) {
+    x.t = self.m.t + 1
+    x.clamp()
+  }
+  self.mu.multiplyUpperTo(self.r2, self.m.t + 1, self.q3)
+  self.m.multiplyLowerTo(self.q3, self.m.t + 1, self.r2)
+  while (x.compareTo(self.r2) < 0) x.dAddOffset(1, self.m.t + 1)
+  x.subTo(self.r2, x)
+  while (x.compareTo(self.m) >= 0) x.subTo(self.m, x)
+}
+
+// r = x^2 mod m; x != r
+function barrettSqrTo(x, r) {
+  x.squareTo(r)
+  this.reduce(r)
+}
+
+// r = x*y mod m; x,y != r
+function barrettMulTo(x, y, r) {
+  x.multiplyTo(y, r)
+  this.reduce(r)
+}
+
+Barrett.prototype.convert = barrettConvert
+Barrett.prototype.revert = barrettRevert
+Barrett.prototype.reduce = barrettReduce
+Barrett.prototype.mulTo = barrettMulTo
+Barrett.prototype.sqrTo = barrettSqrTo
+
+// (public) this^e % m (HAC 14.85)
+function bnModPow(e, m) {
+  var i = e.bitLength(),
+    k, r = nbv(1),
+    z
+  if (i <= 0) return r
+  else if (i < 18) k = 1
+  else if (i < 48) k = 3
+  else if (i < 144) k = 4
+  else if (i < 768) k = 5
+  else k = 6
+  if (i < 8)
+    z = new Classic(m)
+  else if (m.isEven())
+    z = new Barrett(m)
+  else
+    z = new Montgomery(m)
+
+  // precomputation
+  var g = new Array(),
+    n = 3,
+    k1 = k - 1,
+    km = (1 << k) - 1
+  g[1] = z.convert(this)
+  if (k > 1) {
+    var g2 = new BigInteger()
+    z.sqrTo(g[1], g2)
+    while (n <= km) {
+      g[n] = new BigInteger()
+      z.mulTo(g2, g[n - 2], g[n])
+      n += 2
+    }
+  }
+
+  var j = e.t - 1,
+    w, is1 = true,
+    r2 = new BigInteger(),
+    t
+  i = nbits(e[j]) - 1
+  while (j >= 0) {
+    if (i >= k1) w = (e[j] >> (i - k1)) & km
+    else {
+      w = (e[j] & ((1 << (i + 1)) - 1)) << (k1 - i)
+      if (j > 0) w |= e[j - 1] >> (this.DB + i - k1)
+    }
+
+    n = k
+    while ((w & 1) == 0) {
+      w >>= 1
+      --n
+    }
+    if ((i -= n) < 0) {
+      i += this.DB
+      --j
+    }
+    if (is1) { // ret == 1, don't bother squaring or multiplying it
+      g[w].copyTo(r)
+      is1 = false
+    } else {
+      while (n > 1) {
+        z.sqrTo(r, r2)
+        z.sqrTo(r2, r)
+        n -= 2
+      }
+      if (n > 0) z.sqrTo(r, r2)
+      else {
+        t = r
+        r = r2
+        r2 = t
+      }
+      z.mulTo(r2, g[w], r)
+    }
+
+    while (j >= 0 && (e[j] & (1 << i)) == 0) {
+      z.sqrTo(r, r2)
+      t = r
+      r = r2
+      r2 = t
+      if (--i < 0) {
+        i = this.DB - 1
+        --j
+      }
+    }
+  }
+  return z.revert(r)
+}
+
+// (public) gcd(this,a) (HAC 14.54)
+function bnGCD(a) {
+  var x = (this.s < 0) ? this.negate() : this.clone()
+  var y = (a.s < 0) ? a.negate() : a.clone()
+  if (x.compareTo(y) < 0) {
+    var t = x
+    x = y
+    y = t
+  }
+  var i = x.getLowestSetBit(),
+    g = y.getLowestSetBit()
+  if (g < 0) return x
+  if (i < g) g = i
+  if (g > 0) {
+    x.rShiftTo(g, x)
+    y.rShiftTo(g, y)
+  }
+  while (x.signum() > 0) {
+    if ((i = x.getLowestSetBit()) > 0) x.rShiftTo(i, x)
+    if ((i = y.getLowestSetBit()) > 0) y.rShiftTo(i, y)
+    if (x.compareTo(y) >= 0) {
+      x.subTo(y, x)
+      x.rShiftTo(1, x)
+    } else {
+      y.subTo(x, y)
+      y.rShiftTo(1, y)
+    }
+  }
+  if (g > 0) y.lShiftTo(g, y)
+  return y
+}
+
+// (protected) this % n, n < 2^26
+function bnpModInt(n) {
+  if (n <= 0) return 0
+  var d = this.DV % n,
+    r = (this.s < 0) ? n - 1 : 0
+  if (this.t > 0)
+    if (d == 0) r = this[0] % n
+    else
+      for (var i = this.t - 1; i >= 0; --i) r = (d * r + this[i]) % n
+  return r
+}
+
+// (public) 1/this % m (HAC 14.61)
+function bnModInverse(m) {
+  var ac = m.isEven()
+  if (this.signum() === 0) throw new Error('division by zero')
+  if ((this.isEven() && ac) || m.signum() == 0) return BigInteger.ZERO
+  var u = m.clone(),
+    v = this.clone()
+  var a = nbv(1),
+    b = nbv(0),
+    c = nbv(0),
+    d = nbv(1)
+  while (u.signum() != 0) {
+    while (u.isEven()) {
+      u.rShiftTo(1, u)
+      if (ac) {
+        if (!a.isEven() || !b.isEven()) {
+          a.addTo(this, a)
+          b.subTo(m, b)
+        }
+        a.rShiftTo(1, a)
+      } else if (!b.isEven()) b.subTo(m, b)
+      b.rShiftTo(1, b)
+    }
+    while (v.isEven()) {
+      v.rShiftTo(1, v)
+      if (ac) {
+        if (!c.isEven() || !d.isEven()) {
+          c.addTo(this, c)
+          d.subTo(m, d)
+        }
+        c.rShiftTo(1, c)
+      } else if (!d.isEven()) d.subTo(m, d)
+      d.rShiftTo(1, d)
+    }
+    if (u.compareTo(v) >= 0) {
+      u.subTo(v, u)
+      if (ac) a.subTo(c, a)
+      b.subTo(d, b)
+    } else {
+      v.subTo(u, v)
+      if (ac) c.subTo(a, c)
+      d.subTo(b, d)
+    }
+  }
+  if (v.compareTo(BigInteger.ONE) != 0) return BigInteger.ZERO
+  while (d.compareTo(m) >= 0) d.subTo(m, d)
+  while (d.signum() < 0) d.addTo(m, d)
+  return d
+}
+
+var lowprimes = [
+  2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+  73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151,
+  157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233,
+  239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317,
+  331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419,
+  421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503,
+  509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607,
+  613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701,
+  709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811,
+  821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911,
+  919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997
+]
+
+var lplim = (1 << 26) / lowprimes[lowprimes.length - 1]
+
+// (public) test primality with certainty >= 1-.5^t
+function bnIsProbablePrime(t) {
+  var i, x = this.abs()
+  if (x.t == 1 && x[0] <= lowprimes[lowprimes.length - 1]) {
+    for (i = 0; i < lowprimes.length; ++i)
+      if (x[0] == lowprimes[i]) return true
+    return false
+  }
+  if (x.isEven()) return false
+  i = 1
+  while (i < lowprimes.length) {
+    var m = lowprimes[i],
+      j = i + 1
+    while (j < lowprimes.length && m < lplim) m *= lowprimes[j++]
+    m = x.modInt(m)
+    while (i < j) if (m % lowprimes[i++] == 0) return false
+  }
+  return x.millerRabin(t)
+}
+
+// (protected) true if probably prime (HAC 4.24, Miller-Rabin)
+function bnpMillerRabin(t) {
+  var n1 = this.subtract(BigInteger.ONE)
+  var k = n1.getLowestSetBit()
+  if (k <= 0) return false
+  var r = n1.shiftRight(k)
+  t = (t + 1) >> 1
+  if (t > lowprimes.length) t = lowprimes.length
+  var a = new BigInteger(null)
+  var j, bases = []
+  for (var i = 0; i < t; ++i) {
+    for (;;) {
+      j = lowprimes[Math.floor(Math.random() * lowprimes.length)]
+      if (bases.indexOf(j) == -1) break
+    }
+    bases.push(j)
+    a.fromInt(j)
+    var y = a.modPow(r, this)
+    if (y.compareTo(BigInteger.ONE) != 0 && y.compareTo(n1) != 0) {
+      var j = 1
+      while (j++ < k && y.compareTo(n1) != 0) {
+        y = y.modPowInt(2, this)
+        if (y.compareTo(BigInteger.ONE) == 0) return false
+      }
+      if (y.compareTo(n1) != 0) return false
+    }
+  }
+  return true
+}
+
+// protected
+proto.chunkSize = bnpChunkSize
+proto.toRadix = bnpToRadix
+proto.fromRadix = bnpFromRadix
+proto.fromNumber = bnpFromNumber
+proto.bitwiseTo = bnpBitwiseTo
+proto.changeBit = bnpChangeBit
+proto.addTo = bnpAddTo
+proto.dMultiply = bnpDMultiply
+proto.dAddOffset = bnpDAddOffset
+proto.multiplyLowerTo = bnpMultiplyLowerTo
+proto.multiplyUpperTo = bnpMultiplyUpperTo
+proto.modInt = bnpModInt
+proto.millerRabin = bnpMillerRabin
+
+// public
+proto.clone = bnClone
+proto.intValue = bnIntValue
+proto.byteValue = bnByteValue
+proto.shortValue = bnShortValue
+proto.signum = bnSigNum
+proto.toByteArray = bnToByteArray
+proto.equals = bnEquals
+proto.min = bnMin
+proto.max = bnMax
+proto.and = bnAnd
+proto.or = bnOr
+proto.xor = bnXor
+proto.andNot = bnAndNot
+proto.not = bnNot
+proto.shiftLeft = bnShiftLeft
+proto.shiftRight = bnShiftRight
+proto.getLowestSetBit = bnGetLowestSetBit
+proto.bitCount = bnBitCount
+proto.testBit = bnTestBit
+proto.setBit = bnSetBit
+proto.clearBit = bnClearBit
+proto.flipBit = bnFlipBit
+proto.add = bnAdd
+proto.subtract = bnSubtract
+proto.multiply = bnMultiply
+proto.divide = bnDivide
+proto.remainder = bnRemainder
+proto.divideAndRemainder = bnDivideAndRemainder
+proto.modPow = bnModPow
+proto.modInverse = bnModInverse
+proto.pow = bnPow
+proto.gcd = bnGCD
+proto.isProbablePrime = bnIsProbablePrime
+
+// JSBN-specific extension
+proto.square = bnSquare
+
+BigInteger.ZERO = nbv(0)
+BigInteger.ONE = nbv(1)
+//end replace
+
+// BigInteger interfaces not implemented in jsbn:
+
+// BigInteger(int signum, byte[] magnitude)
+// double doubleValue()
+// float floatValue()
+// int hashCode()
+// long longValue()
+// static BigInteger valueOf(long val)
+
+// prng4.js - uses Arcfour as a PRNG
+
+function Arcfour() {
+  this.i = 0;
+  this.j = 0;
+  this.S = new Array();
+}
+
+// Initialize arcfour context from key, an array of ints, each from [0..255]
+function ARC4init(key) {
+  var i, j, t;
+  for(i = 0; i < 256; ++i)
+    this.S[i] = i;
+  j = 0;
+  for(i = 0; i < 256; ++i) {
+    j = (j + this.S[i] + key[i % key.length]) & 255;
+    t = this.S[i];
+    this.S[i] = this.S[j];
+    this.S[j] = t;
+  }
+  this.i = 0;
+  this.j = 0;
+}
+
+function ARC4next() {
+  var t;
+  this.i = (this.i + 1) & 255;
+  this.j = (this.j + this.S[this.i]) & 255;
+  t = this.S[this.i];
+  this.S[this.i] = this.S[this.j];
+  this.S[this.j] = t;
+  return this.S[(t + this.S[this.i]) & 255];
+}
+
+Arcfour.prototype.init = ARC4init;
+Arcfour.prototype.next = ARC4next;
+
+// Plug in your RNG constructor here
+function prng_newstate() {
+  return new Arcfour();
+}
+
+// Pool size must be a multiple of 4 and greater than 32.
+// An array of bytes the size of the pool will be passed to init()
+var rng_psize = 256;
+
+// Random number generator - requires a PRNG backend, e.g. prng4.js
+var rng_state;
+var rng_pool;
+var rng_pptr;
+
+// Initialize the pool with junk if needed.
+if(rng_pool == null) {
+  rng_pool = new Array();
+  rng_pptr = 0;
+  var t;
+  /*if(window.crypto && window.crypto.getRandomValues) {  //
+    // Extract entropy (2048 bits) from RNG if available
+    var z = new Uint32Array(256);
+    window.crypto.getRandomValues(z);
+    for (t = 0; t < z.length; ++t)
+      rng_pool[rng_pptr++] = z[t] & 255;
+  }*/
+  var z = new Array(256)//new Uint32Array(256);
+  for(t = 0; t< z.length; ++t){
+    z[t] = Math.random(10);
+    rng_pool[rng_pptr++] = z[t] & 255;
+  }
+
+  // Use mouse events for entropy, if we do not have enough entropy by the time
+  // we need it, entropy will be generated by Math.random.
+  /*var onMouseMoveListener = function(ev) {
+    this.count = this.count || 0;
+    if (this.count >= 256 || rng_pptr >= rng_psize) {
+      if (window.removeEventListener)
+        window.removeEventListener("mousemove", onMouseMoveListener, false);
+      else if (window.detachEvent)
+        window.detachEvent("onmousemove", onMouseMoveListener);
+      return;
+    }
+    try {
+      var mouseCoordinates = ev.x + ev.y;
+      rng_pool[rng_pptr++] = mouseCoordinates & 255;
+      this.count += 1;
+    } catch (e) {
+      // Sometimes Firefox will deny permission to access event properties for some reason. Ignore.
+    }
+  };
+  if (window.addEventListener)
+    window.addEventListener("mousemove", onMouseMoveListener, false);
+  else if (window.attachEvent)
+    window.attachEvent("onmousemove", onMouseMoveListener);*/
+
+}
+
+function rng_get_byte() {
+  if(rng_state == null) {
+    rng_state = prng_newstate();
+    // At this point, we may not have collected enough entropy.  If not, fall back to Math.random
+    while (rng_pptr < rng_psize) {
+      var random = Math.floor(65536 * Math.random());
+      rng_pool[rng_pptr++] = random & 255;
+    }
+    rng_state.init(rng_pool);
+    for(rng_pptr = 0; rng_pptr < rng_pool.length; ++rng_pptr)
+      rng_pool[rng_pptr] = 0;
+    rng_pptr = 0;
+  }
+  // TODO: allow reseeding after first request
+  return rng_state.next();
+}
+
+function rng_get_bytes(ba) {
+  var i;
+  for(i = 0; i < ba.length; ++i) ba[i] = rng_get_byte();
+}
+
+// @mingfer 原有的随机数函数 rng_get_bytes 存在 BUG，可能会生成重复的随机数
+function rng_get_bytes_custom(random) {
+  var r = (function (m_w) {
+      var m_w = m_w;
+      var m_z = 0x3ade68b1;
+      var mask = 0xffffffff;
+
+      return function () {
+          m_z = (0x9069 * (m_z & 0xFFFF) + (m_z >> 0x10)) & mask;
+          m_w = (0x4650 * (m_w & 0xFFFF) + (m_w >> 0x10)) & mask;
+          var result = ((m_z << 0x10) + m_w) & mask;
+          result /= 0x100000000;
+          result += 0.5;
+          return result * (Math.random() > .5 ? 1 : -1);
+      }
+  });
+
+  for (var i = 0, rcache; i < random.length; i++) {
+      var _r = r((rcache || Math.random()) * 0x100000000);
+      rcache = _r() * 0x3ade67b7; 
+      random[i] = rcache & 0xFF;
+  }
+  return random;   
+}
+
+function SecureRandom() {}
+
+SecureRandom.prototype.nextBytes = rng_get_bytes_custom;
+
+// Depends on jsbn.js and rng.js
+
+// Version 1.1: support utf-8 encoding in pkcs1pad2
+
+// convert a (hex) string to a bignum object
+function parseBigInt(str,r) {
+  return new BigInteger(str,r);
+}
+
+function linebrk(s,n) {
+  var ret = "";
+  var i = 0;
+  while(i + n < s.length) {
+    ret += s.substring(i,i+n) + "\n";
+    i += n;
+  }
+  return ret + s.substring(i,s.length);
+}
+
+function byte2Hex(b) {
+  if(b < 0x10)
+    return "0" + b.toString(16);
+  else
+    return b.toString(16);
+}
+
+function hexencode(bytes) {
+    var hexstr = [];
+    var length = bytes.length;
+    for (var i = 0; i < length; i++) {
+        var byte = bytes[i];
+        hexstr.push((byte >>> 4).toString(16));
+        hexstr.push((byte & 0x0F).toString(16));
+    }
+    return hexstr.join('').toUpperCase();
+}
+
+// PKCS#1 (type 2, random) pad input string s to n bytes, and return a bigint
+// 
+// EB = 00 || BT || PS || 00 || M
+// BT : 类型标识，2 - 公钥加密，1 - 私钥加密
+// PS : 填充值，BT = 2 时为非零随机数，BT = 1 时为 0xFF
+// M : message 消息数据
+// 
+function pkcs1pad2(s,n, mode) {
+  if(n < s.length + 11) { // TODO: fix for utf-8
+    UnionLogger.set("Message too long for RSA");
+    return null;
+  }
+  var ba = new Array();
+  var i = s.length - 1;
+  while(i >= 0 && n > 0) {
+    ba[--n] = s[i--];
+    // ZMFeng 传入数据为 Uint8Array
+    // var c = s.charCodeAt(i--);
+    // if(c < 128) { // encode using utf-8
+    //   ba[--n] = c;
+    // }
+    // else if((c > 127) && (c < 2048)) {
+    //   ba[--n] = (c & 63) | 128;
+    //   ba[--n] = (c >> 6) | 192;
+    // }
+    // else {
+    //   ba[--n] = (c & 63) | 128;
+    //   ba[--n] = ((c >> 6) & 63) | 128;
+    //   ba[--n] = (c >> 12) | 224;
+    // }
+  }
+  ba[--n] = 0;
+  var start = n;
+  if (mode && mode === 'sign') {
+    while(n > 2) { // oxff pad
+      ba[--n] = 0xFF;
+    }
+    ba[--n] = 1;
+  } else {
+    var rng = new SecureRandom();
+    var x = new Array();
+    while(n > 2) { // random non-zero pad
+      x[0] = 0;
+      while(x[0] == 0) rng.nextBytes(x);
+      ba[--n] = x[0];
+    }
+    ba[--n] = 2;
+  }
+  UnionLogger.set("RandomHex: " + hexencode(ba.slice(2, start)));
+  ba[--n] = 0;
+  UnionLogger.set("PlainText：" + hexencode(ba));
+  return new BigInteger(ba);
+}
+
+// "empty" RSA key constructor
+function RSAKey() {
+  this.n = null;
+  this.e = 0;
+  this.d = null;
+  this.p = null;
+  this.q = null;
+  this.dmp1 = null;
+  this.dmq1 = null;
+  this.coeff = null;
+}
+
+// Set the public key fields N and e from hex strings
+function RSASetPublic(N,E) {
+  if(N != null && E != null && N.length > 0 && E.length > 0) {
+    this.n = parseBigInt(N,16);
+    this.e = parseInt(E,16);
+  }
+  else
+    UnionLogger.set("Invalid RSA public key");
+}
+
+// Perform raw public operation on "x": return x^e (mod n)
+function RSADoPublic(x) {
+  return x.modPowInt(this.e, this.n);
+}
+
+// Return the PKCS#1 RSA encryption of "text" as an even-length hex string
+function RSAEncrypt(text) {
+  var ZoreStr = "0000000000000000000000000000000";
+  var modLen = (this.n.bitLength()+7)>>3;
+  var m = pkcs1pad2(text, modLen);
+  if(m == null) return null;
+  var c = this.doPublic(m);
+  if(c == null) return null;
+  var h = c.toString(16);
+  if (h.length < modLen * 2) {
+      return ZoreStr.substring(0, modLen * 2 - h.length) + h;
+  }
+  else 
+    return h;
+}
+
+// Return the PKCS#1 RSA encryption of "text" as a Base64-encoded string
+//function RSAEncryptB64(text) {
+//  var h = this.encrypt(text);
+//  if(h) return hex2b64(h); else return null;
+//}
+//
+RSAKey.prototype.pkcs1pad2 = pkcs1pad2;
+
+RSAKey.prototype.sign = function (text) {
+  var m = pkcs1pad2(text,(this.n.bitLength()+7)>>3, 'sign');
+  if(m == null) return null;
+  var c = this.doPrivate(m);
+  if(c == null) return null;
+  var h = c.toString(16);
+  if((h.length & 1) == 0) return h; else return "0" + h;
+};
+
+RSAKey.prototype.verify = function (sign, text) {
+  var c = parseBigInt(sign, 16);
+  var m = this.doPublic(c);
+  if(m == null) return null;
+  return pkcs1unpad2(m, (this.n.bitLength()+7)>>3).toString() === text.toString();
+};
+
+// protected
+RSAKey.prototype.doPublic = RSADoPublic;
+
+// public
+RSAKey.prototype.setPublic = RSASetPublic;
+RSAKey.prototype.encrypt = RSAEncrypt;
+//RSAKey.prototype.encrypt_b64 = RSAEncryptB64;
+
+// Depends on rsa.js and jsbn2.js
+
+// Version 1.1: support utf-8 decoding in pkcs1unpad2
+
+// Undo PKCS#1 (type 2, random) padding and, if valid, return the plaintext
+function pkcs1unpad2(d,n) {
+  var b = d.toByteArray();
+  var i = 0;
+  while(i < b.length && b[i] == 0) ++i;
+  if(b.length-i != n-1 || (b[i] != 2 && b[i] != 1)) {
+    UnionLogger.set('unpad PKCS#1 failed.');
+    return null;
+  }
     
+  ++i;
+  var counts = 0;
+  while(b[i] != 0) {
+    counts++;
+    if(++i >= b.length) {
+      UnionLogger.set('unpad PKCS#1 failed.');
+      return null;
+    }
+  }
+  if (counts < 8) {
+    UnionLogger.set('unpad PKCS#1 failed.');
+    return null;
+  }
+  var ret = [];
+  while(++i < b.length) {
+    ret.push(b[i] & 255); // ZMFeng 直接返回 Uint8Array 值
+    // var c = b[i] & 255;
+    // if(c < 128) { // utf-8 decode
+    //   ret += String.fromCharCode(c);
+    // }
+    // else if((c > 191) && (c < 224)) {
+    //   ret += String.fromCharCode(((c & 31) << 6) | (b[i+1] & 63));
+    //   ++i;
+    // }
+    // else {
+    //   ret += String.fromCharCode(((c & 15) << 12) | ((b[i+1] & 63) << 6) | (b[i+2] & 63));
+    //   i += 2;
+    // }
+  }
+  return ret;
+}
+
+// Set the private key fields N, e, and d from hex strings
+function RSASetPrivate(N,E,D) {
+  if(N != null && E != null && N.length > 0 && E.length > 0) {
+    this.n = parseBigInt(N,16);
+    this.e = parseInt(E,16);
+    this.d = parseBigInt(D,16);
+  }
+  else
+    UnionLogger.set("Invalid RSA private key");
+}
+
+// Set the private key fields N, e, d and CRT params from hex strings
+function RSASetPrivateEx(N,E,D,P,Q,DP,DQ,C) {
+  if(N != null && E != null && N.length > 0 && E.length > 0) {
+    this.n = parseBigInt(N,16);
+    this.e = parseInt(E,16);
+    this.d = parseBigInt(D,16);
+    this.p = parseBigInt(P,16);
+    this.q = parseBigInt(Q,16);
+    this.dmp1 = parseBigInt(DP,16);
+    this.dmq1 = parseBigInt(DQ,16);
+    this.coeff = parseBigInt(C,16);
+  }
+  else
+    UnionLogger.set("Invalid RSA private key");
+}
+
+// Generate a new random private key B bits long, using public expt E
+function RSAGenerate(B,E) {
+  var rng = new SecureRandom();
+  var qs = B>>1;
+  this.e = parseInt(E,16);
+  var ee = new BigInteger(E,16);
+  for(;;) {
+    for(;;) {
+      this.p = new BigInteger(B-qs,1,rng);
+      if(this.p.subtract(BigInteger.ONE).gcd(ee).compareTo(BigInteger.ONE) == 0 && this.p.isProbablePrime(10)) break;
+    }
+    for(;;) {
+      this.q = new BigInteger(qs,1,rng);
+      if(this.q.subtract(BigInteger.ONE).gcd(ee).compareTo(BigInteger.ONE) == 0 && this.q.isProbablePrime(10)) break;
+    }
+    if(this.p.compareTo(this.q) <= 0) {
+      var t = this.p;
+      this.p = this.q;
+      this.q = t;
+    }
+    var p1 = this.p.subtract(BigInteger.ONE);
+    var q1 = this.q.subtract(BigInteger.ONE);
+    var phi = p1.multiply(q1);
+    if(phi.gcd(ee).compareTo(BigInteger.ONE) == 0) {
+      this.n = this.p.multiply(this.q);
+      this.d = ee.modInverse(phi);
+      this.dmp1 = this.d.mod(p1);
+      this.dmq1 = this.d.mod(q1);
+      this.coeff = this.q.modInverse(this.p);
+      break;
+    }
+  }
+}
+
+// Perform raw private operation on "x": return x^d (mod n)
+function RSADoPrivate(x) {
+  if(this.p == null || this.q == null)
+    return x.modPow(this.d, this.n);
+
+  // TODO: re-calculate any missing CRT params
+  var xp = x.mod(this.p).modPow(this.dmp1, this.p);
+  var xq = x.mod(this.q).modPow(this.dmq1, this.q);
+
+  while(xp.compareTo(xq) < 0)
+    xp = xp.add(this.p);
+  return xp.subtract(xq).multiply(this.coeff).mod(this.p).multiply(this.q).add(xq);
+}
+
+// Return the PKCS#1 RSA decryption of "ctext".
+// "ctext" is an even-length hex string and the output is a plain string.
+function RSADecrypt(ctext) {
+  var c = parseBigInt(ctext, 16);
+  var m = this.doPrivate(c);
+  if(m == null) return null;
+  return pkcs1unpad2(m, (this.n.bitLength()+7)>>3);
+}
+
+// Return the PKCS#1 RSA decryption of "ctext".
+// "ctext" is a Base64-encoded string and the output is a plain string.
+//function RSAB64Decrypt(ctext) {
+//  var h = b64tohex(ctext);
+//  if(h) return this.decrypt(h); else return null;
+//}
+
+// protected
+RSAKey.prototype.doPrivate = RSADoPrivate;
+
+// public
+RSAKey.prototype.setPrivate = RSASetPrivate;
+RSAKey.prototype.setPrivateEx = RSASetPrivateEx;
+RSAKey.prototype.generate = RSAGenerate;
+RSAKey.prototype.decrypt = RSADecrypt;
+//RSAKey.prototype.b64_decrypt = RSAB64Decrypt;
+
+// Copyright (c) 2011  Kevin M Burns Jr.
+// All Rights Reserved.
+// See "LICENSE" for details.
+//
+// Extension to jsbn which adds facilities for asynchronous RSA key generation
+// Primarily created to avoid execution timeout on mobile devices
+//
+// http://www-cs-students.stanford.edu/~tjw/jsbn/
+//
+// ---
+
+(function(){
+
+// Generate a new random private key B bits long, using public expt E
+var RSAGenerateAsync = function (B, E, callback) {
+    //var rng = new SeededRandom();
+    var rng = new SecureRandom();
+    var qs = B >> 1;
+    this.e = parseInt(E, 16);
+    var ee = new BigInteger(E, 16);
+    var rsa = this;
+    // These functions have non-descript names because they were originally for(;;) loops.
+    // I don't know about cryptography to give them better names than loop1-4.
+    var loop1 = function() {
+        var loop4 = function() {
+            if (rsa.p.compareTo(rsa.q) <= 0) {
+                var t = rsa.p;
+                rsa.p = rsa.q;
+                rsa.q = t;
+            }
+            var p1 = rsa.p.subtract(BigInteger.ONE);
+            var q1 = rsa.q.subtract(BigInteger.ONE);
+            var phi = p1.multiply(q1);
+            if (phi.gcd(ee).compareTo(BigInteger.ONE) == 0) {
+                rsa.n = rsa.p.multiply(rsa.q);
+                rsa.d = ee.modInverse(phi);
+                rsa.dmp1 = rsa.d.mod(p1);
+                rsa.dmq1 = rsa.d.mod(q1);
+                rsa.coeff = rsa.q.modInverse(rsa.p);
+                setTimeout(function(){callback()},0); // escape
+            } else {
+                setTimeout(loop1,0);
+            }
+        };
+        var loop3 = function() {
+            rsa.q = nbi();
+            rsa.q.fromNumberAsync(qs, 1, rng, function(){
+                rsa.q.subtract(BigInteger.ONE).gcda(ee, function(r){
+                    if (r.compareTo(BigInteger.ONE) == 0 && rsa.q.isProbablePrime(10)) {
+                        setTimeout(loop4,0);
+                    } else {
+                        setTimeout(loop3,0);
+                    }
+                });
+            });
+        };
+        var loop2 = function() {
+            rsa.p = nbi();
+            rsa.p.fromNumberAsync(B - qs, 1, rng, function(){
+                rsa.p.subtract(BigInteger.ONE).gcda(ee, function(r){
+                    if (r.compareTo(BigInteger.ONE) == 0 && rsa.p.isProbablePrime(10)) {
+                        setTimeout(loop3,0);
+                    } else {
+                        setTimeout(loop2,0);
+                    }
+                });
+            });
+        };
+        setTimeout(loop2,0);
+    };
+    setTimeout(loop1,0);
+};
+RSAKey.prototype.generateAsync = RSAGenerateAsync;
+
+// Public API method
+var bnGCDAsync = function (a, callback) {
+    var x = (this.s < 0) ? this.negate() : this.clone();
+    var y = (a.s < 0) ? a.negate() : a.clone();
+    if (x.compareTo(y) < 0) {
+        var t = x;
+        x = y;
+        y = t;
+    }
+    var i = x.getLowestSetBit(),
+        g = y.getLowestSetBit();
+    if (g < 0) {
+        callback(x);
+        return;
+    }
+    if (i < g) g = i;
+    if (g > 0) {
+        x.rShiftTo(g, x);
+        y.rShiftTo(g, y);
+    }
+    // Workhorse of the algorithm, gets called 200 - 800 times per 512 bit keygen.
+    var gcda1 = function() {
+        if ((i = x.getLowestSetBit()) > 0){ x.rShiftTo(i, x); }
+        if ((i = y.getLowestSetBit()) > 0){ y.rShiftTo(i, y); }
+        if (x.compareTo(y) >= 0) {
+            x.subTo(y, x);
+            x.rShiftTo(1, x);
+        } else {
+            y.subTo(x, y);
+            y.rShiftTo(1, y);
+        }
+        if(!(x.signum() > 0)) {
+            if (g > 0) y.lShiftTo(g, y);
+            setTimeout(function(){callback(y)},0); // escape
+        } else {
+            setTimeout(gcda1,0);
+        }
+    };
+    setTimeout(gcda1,10);
+};
+BigInteger.prototype.gcda = bnGCDAsync;
+
+// (protected) alternate constructor
+var bnpFromNumberAsync = function (a,b,c,callback) {
+  if("number" == typeof b) {
+    if(a < 2) {
+        this.fromInt(1);
+    } else {
+      this.fromNumber(a,c);
+      if(!this.testBit(a-1)){
+        this.bitwiseTo(BigInteger.ONE.shiftLeft(a-1),op_or,this);
+      }
+      if(this.isEven()) {
+        this.dAddOffset(1,0);
+      }
+      var bnp = this;
+      var bnpfn1 = function(){
+        bnp.dAddOffset(2,0);
+        if(bnp.bitLength() > a) bnp.subTo(BigInteger.ONE.shiftLeft(a-1),bnp);
+        if(bnp.isProbablePrime(b)) {
+            setTimeout(function(){callback()},0); // escape
+        } else {
+            setTimeout(bnpfn1,0);
+        }
+      };
+      setTimeout(bnpfn1,0);
+    }
+  } else {
+    var x = new Array(), t = a&7;
+    x.length = (a>>3)+1;
+    b.nextBytes(x);
+    if(t > 0) x[0] &= ((1<<t)-1); else x[0] = 0;
+    this.fromString(x,256);
+  }
+};
+BigInteger.prototype.fromNumberAsync = bnpFromNumberAsync;
+
+})();
+var b64map="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+var b64pad="=";
+
+function hex2b64(h) {
+  var i;
+  var c;
+  var ret = "";
+  for(i = 0; i+3 <= h.length; i+=3) {
+    c = parseInt(h.substring(i,i+3),16);
+    ret += b64map.charAt(c >> 6) + b64map.charAt(c & 63);
+  }
+  if(i+1 == h.length) {
+    c = parseInt(h.substring(i,i+1),16);
+    ret += b64map.charAt(c << 2);
+  }
+  else if(i+2 == h.length) {
+    c = parseInt(h.substring(i,i+2),16);
+    ret += b64map.charAt(c >> 2) + b64map.charAt((c & 3) << 4);
+  }
+  while((ret.length & 3) > 0) ret += b64pad;
+  return ret;
+}
+
+// convert a base64 string to hex
+function b64tohex(s) {
+  var ret = ""
+  var i;
+  var k = 0; // b64 state, 0-3
+  var slop;
+  for(i = 0; i < s.length; ++i) {
+    if(s.charAt(i) == b64pad) break;
+    v = b64map.indexOf(s.charAt(i));
+    if(v < 0) continue;
+    if(k == 0) {
+      ret += int2char(v >> 2);
+      slop = v & 3;
+      k = 1;
+    }
+    else if(k == 1) {
+      ret += int2char((slop << 2) | (v >> 4));
+      slop = v & 0xf;
+      k = 2;
+    }
+    else if(k == 2) {
+      ret += int2char(slop);
+      ret += int2char(v >> 2);
+      slop = v & 3;
+      k = 3;
+    }
+    else {
+      ret += int2char((slop << 2) | (v >> 4));
+      ret += int2char(v & 0xf);
+      k = 0;
+    }
+  }
+  if(k == 1)
+    ret += int2char(slop << 2);
+  return ret;
+}
+
+// convert a base64 string to a byte/number array
+function b64toBA(s) {
+  //piggyback on b64tohex for now, optimize later
+  var h = b64tohex(s);
+  var i;
+  var a = new Array();
+  for(i = 0; 2*i < h.length; ++i) {
+    a[i] = parseInt(h.substring(2*i,2*i+2),16);
+  }
+  return a;
+}
+
+/*! asn1-1.0.2.js (c) 2013 Kenji Urushima | kjur.github.com/jsrsasign/license
+ */
+var JSX = JSX || {};
+JSX.env = JSX.env || {};
+var L = JSX, OP = Object.prototype, FUNCTION_TOSTRING = '[object Function]',ADD = ["toString", "valueOf"];
+
+
+JSX.extend = function(subc, superc, overrides) {
+    if (!superc||!subc) {
+        throw new Error("extend failed, please check that " +
+                        "all dependencies are included.");
+    }
+    var F = function() {}, i;
+    F.prototype=superc.prototype;
+    subc.prototype=new F();
+    subc.prototype.constructor=subc;
+    subc.superclass=superc.prototype;
+    if (superc.prototype.constructor == OP.constructor) {
+        superc.prototype.constructor=superc;
+    }
+
+    if (overrides) {
+        for (i in overrides) {
+            if (L.hasOwnProperty(overrides, i)) {
+                subc.prototype[i]=overrides[i];
+            }
+        }
+
+        L._IEEnumFix(subc.prototype, overrides);
+    }
+};
+/*
+ * asn1.js - ASN.1 DER encoder classes
+ *
+ * Copyright (c) 2013 Kenji Urushima (kenji.urushima@gmail.com)
+ *
+ * This software is licensed under the terms of the MIT License.
+ * http://kjur.github.com/jsrsasign/license
+ *
+ * The above copyright and license notice shall be 
+ * included in all copies or substantial portions of the Software.
+ */
+
+/**
+ * @fileOverview
+ * @name asn1-1.0.js
+ * @author Kenji Urushima kenji.urushima@gmail.com
+ * @version 1.0.2 (2013-May-30)
+ * @since 2.1
+ * @license <a href="http://kjur.github.io/jsrsasign/license/">MIT License</a>
+ */
+
+/** 
+ * kjur's class library name space
+ * <p>
+ * This name space provides following name spaces:
+ * <ul>
+ * <li>{@link KJUR.asn1} - ASN.1 primitive hexadecimal encoder</li>
+ * <li>{@link KJUR.asn1.x509} - ASN.1 structure for X.509 certificate and CRL</li>
+ * <li>{@link KJUR.crypto} - Java Cryptographic Extension(JCE) style MessageDigest/Signature 
+ * class and utilities</li>
+ * </ul>
+ * </p> 
+ * NOTE: Please ignore method summary and document of this namespace. This caused by a bug of jsdoc2.
+  * @name KJUR
+ * @namespace kjur's class library name space
+ */
+if (typeof KJUR == "undefined" || !KJUR) KJUR = {};
+
+/**
+ * kjur's ASN.1 class library name space
+ * <p>
+ * This is ITU-T X.690 ASN.1 DER encoder class library and
+ * class structure and methods is very similar to 
+ * org.bouncycastle.asn1 package of 
+ * well known BouncyCaslte Cryptography Library.
+ *
+ * <h4>PROVIDING ASN.1 PRIMITIVES</h4>
+ * Here are ASN.1 DER primitive classes.
+ * <ul>
+ * <li>{@link KJUR.asn1.DERBoolean}</li>
+ * <li>{@link KJUR.asn1.DERInteger}</li>
+ * <li>{@link KJUR.asn1.DERBitString}</li>
+ * <li>{@link KJUR.asn1.DEROctetString}</li>
+ * <li>{@link KJUR.asn1.DERNull}</li>
+ * <li>{@link KJUR.asn1.DERObjectIdentifier}</li>
+ * <li>{@link KJUR.asn1.DERUTF8String}</li>
+ * <li>{@link KJUR.asn1.DERNumericString}</li>
+ * <li>{@link KJUR.asn1.DERPrintableString}</li>
+ * <li>{@link KJUR.asn1.DERTeletexString}</li>
+ * <li>{@link KJUR.asn1.DERIA5String}</li>
+ * <li>{@link KJUR.asn1.DERUTCTime}</li>
+ * <li>{@link KJUR.asn1.DERGeneralizedTime}</li>
+ * <li>{@link KJUR.asn1.DERSequence}</li>
+ * <li>{@link KJUR.asn1.DERSet}</li>
+ * </ul>
+ *
+ * <h4>OTHER ASN.1 CLASSES</h4>
+ * <ul>
+ * <li>{@link KJUR.asn1.ASN1Object}</li>
+ * <li>{@link KJUR.asn1.DERAbstractString}</li>
+ * <li>{@link KJUR.asn1.DERAbstractTime}</li>
+ * <li>{@link KJUR.asn1.DERAbstractStructured}</li>
+ * <li>{@link KJUR.asn1.DERTaggedObject}</li>
+ * </ul>
+ * </p>
+ * NOTE: Please ignore method summary and document of this namespace. This caused by a bug of jsdoc2.
+ * @name KJUR.asn1
+ * @namespace
+ */
+if (typeof KJUR.asn1 == "undefined" || !KJUR.asn1) KJUR.asn1 = {};
+
+/**
+ * ASN1 utilities class
+ * @name KJUR.asn1.ASN1Util
+ * @classs ASN1 utilities class
+ * @since asn1 1.0.2
+ */
+KJUR.asn1.ASN1Util = new function() {
+    this.integerToByteHex = function(i) {
+	var h = i.toString(16);
+	if ((h.length % 2) == 1) h = '0' + h;
+	return h;
+    };
+    this.bigIntToMinTwosComplementsHex = function(bigIntegerValue) {
+	var h = bigIntegerValue.toString(16);
+	if (h.substr(0, 1) != '-') {
+	    if (h.length % 2 == 1) {
+		h = '0' + h;
+	    } else {
+		if (! h.match(/^[0-7]/)) {
+		    h = '00' + h;
+		}
+	    }
+	} else {
+	    var hPos = h.substr(1);
+	    var xorLen = hPos.length;
+	    if (xorLen % 2 == 1) {
+		xorLen += 1;
+	    } else {
+		if (! h.match(/^[0-7]/)) {
+		    xorLen += 2;
+		}
+	    }
+	    var hMask = '';
+	    for (var i = 0; i < xorLen; i++) {
+		hMask += 'f';
+	    }
+	    var biMask = new BigInteger(hMask, 16);
+	    var biNeg = biMask.xor(bigIntegerValue).add(BigInteger.ONE);
+	    h = biNeg.toString(16).replace(/^-/, '');
+	}
+	return h;
+    };
+    /**
+     * get PEM string from hexadecimal data and header string
+     * @name getPEMStringFromHex
+     * @memberOf KJUR.asn1.ASN1Util
+     * @function
+     * @param {String} dataHex hexadecimal string of PEM body
+     * @param {String} pemHeader PEM header string (ex. 'RSA PRIVATE KEY')
+     * @return {String} PEM formatted string of input data
+     * @description
+     * @example
+     * var pem  = KJUR.asn1.ASN1Util.getPEMStringFromHex('616161', 'RSA PRIVATE KEY');
+     * // value of pem will be:
+     * -----BEGIN PRIVATE KEY-----
+     * YWFh
+     * -----END PRIVATE KEY-----
+     */
+    this.getPEMStringFromHex = function(dataHex, pemHeader) {
+	var dataWA = CryptoJS.enc.Hex.parse(dataHex);
+	var dataB64 = CryptoJS.enc.Base64.stringify(dataWA);
+	var pemBody = dataB64.replace(/(.{64})/g, "$1\r\n");
+        pemBody = pemBody.replace(/\r\n$/, '');
+	return "-----BEGIN " + pemHeader + "-----\r\n" + 
+               pemBody + 
+               "\r\n-----END " + pemHeader + "-----\r\n";
+    };
+};
+
+// ********************************************************************
+//  Abstract ASN.1 Classes
+// ********************************************************************
+
+// ********************************************************************
+
+/**
+ * base class for ASN.1 DER encoder object
+ * @name KJUR.asn1.ASN1Object
+ * @class base class for ASN.1 DER encoder object
+ * @property {Boolean} isModified flag whether internal data was changed
+ * @property {String} hTLV hexadecimal string of ASN.1 TLV
+ * @property {String} hT hexadecimal string of ASN.1 TLV tag(T)
+ * @property {String} hL hexadecimal string of ASN.1 TLV length(L)
+ * @property {String} hV hexadecimal string of ASN.1 TLV value(V)
+ * @description
+ */
+KJUR.asn1.ASN1Object = function() {
+    var isModified = true;
+    var hTLV = null;
+    var hT = '00'
+    var hL = '00';
+    var hV = '';
+
+    /**
+     * get hexadecimal ASN.1 TLV length(L) bytes from TLV value(V)
+     * @name getLengthHexFromValue
+     * @memberOf KJUR.asn1.ASN1Object
+     * @function
+     * @return {String} hexadecimal string of ASN.1 TLV length(L)
+     */
+    this.getLengthHexFromValue = function() {
+	if (typeof this.hV == "undefined" || this.hV == null) {
+	    throw "this.hV is null or undefined.";
+	}
+	if (this.hV.length % 2 == 1) {
+	    throw "value hex must be even length: n=" + hV.length + ",v=" + this.hV;
+	}
+	var n = this.hV.length / 2;
+	var hN = n.toString(16);
+	if (hN.length % 2 == 1) {
+	    hN = "0" + hN;
+	}
+	if (n < 128) {
+	    return hN;
+	} else {
+	    var hNlen = hN.length / 2;
+	    if (hNlen > 15) {
+		throw "ASN.1 length too long to represent by 8x: n = " + n.toString(16);
+	    }
+	    var head = 128 + hNlen;
+	    return head.toString(16) + hN;
+	}
+    };
+
+    /**
+     * get hexadecimal string of ASN.1 TLV bytes
+     * @name getEncodedHex
+     * @memberOf KJUR.asn1.ASN1Object
+     * @function
+     * @return {String} hexadecimal string of ASN.1 TLV
+     */
+    this.getEncodedHex = function() {
+	if (this.hTLV == null || this.isModified) {
+	    this.hV = this.getFreshValueHex();
+	    this.hL = this.getLengthHexFromValue();
+	    this.hTLV = this.hT + this.hL + this.hV;
+	    this.isModified = false;
+	    //console.error("first time: " + this.hTLV);
+	}
+	return this.hTLV;
+    };
+
+    /**
+     * get hexadecimal string of ASN.1 TLV value(V) bytes
+     * @name getValueHex
+     * @memberOf KJUR.asn1.ASN1Object
+     * @function
+     * @return {String} hexadecimal string of ASN.1 TLV value(V) bytes
+     */
+    this.getValueHex = function() {
+	this.getEncodedHex();
+	return this.hV;
+    }
+
+    this.getFreshValueHex = function() {
+	return '';
+    };
+};
+
+// == BEGIN DERAbstractString ================================================
+/**
+ * base class for ASN.1 DER string classes
+ * @name KJUR.asn1.DERAbstractString
+ * @class base class for ASN.1 DER string classes
+ * @param {Array} params associative array of parameters (ex. {'str': 'aaa'})
+ * @property {String} s internal string of value
+ * @extends KJUR.asn1.ASN1Object
+ * @description
+ * <br/>
+ * As for argument 'params' for constructor, you can specify one of
+ * following properties:
+ * <ul>
+ * <li>str - specify initial ASN.1 value(V) by a string</li>
+ * <li>hex - specify initial ASN.1 value(V) by a hexadecimal string</li>
+ * </ul>
+ * NOTE: 'params' can be omitted.
+ */
+KJUR.asn1.DERAbstractString = function(params) {
+    KJUR.asn1.DERAbstractString.superclass.constructor.call(this);
+    var s = null;
+    var hV = null;
+
+    /**
+     * get string value of this string object
+     * @name getString
+     * @memberOf KJUR.asn1.DERAbstractString
+     * @function
+     * @return {String} string value of this string object
+     */
+    this.getString = function() {
+	return this.s;
+    };
+
+    /**
+     * set value by a string
+     * @name setString
+     * @memberOf KJUR.asn1.DERAbstractString
+     * @function
+     * @param {String} newS value by a string to set
+     */
+    this.setString = function(newS) {
+	this.hTLV = null;
+	this.isModified = true;
+	this.s = newS;
+	this.hV = stohex(this.s);
+    };
+
+    /**
+     * set value by a hexadecimal string
+     * @name setStringHex
+     * @memberOf KJUR.asn1.DERAbstractString
+     * @function
+     * @param {String} newHexString value by a hexadecimal string to set
+     */
+    this.setStringHex = function(newHexString) {
+	this.hTLV = null;
+	this.isModified = true;
+	this.s = null;
+	this.hV = newHexString;
+    };
+
+    this.getFreshValueHex = function() {
+	return this.hV;
+    };
+
+    if (typeof params != "undefined") {
+	if (typeof params['str'] != "undefined") {
+	    this.setString(params['str']);
+	} else if (typeof params['hex'] != "undefined") {
+	    this.setStringHex(params['hex']);
+	}
+    }
+};
+JSX.extend(KJUR.asn1.DERAbstractString, KJUR.asn1.ASN1Object);
+// == END   DERAbstractString ================================================
+
+// == BEGIN DERAbstractTime ==================================================
+/**
+ * base class for ASN.1 DER Generalized/UTCTime class
+ * @name KJUR.asn1.DERAbstractTime
+ * @class base class for ASN.1 DER Generalized/UTCTime class
+ * @param {Array} params associative array of parameters (ex. {'str': '130430235959Z'})
+ * @extends KJUR.asn1.ASN1Object
+ * @description
+ * @see KJUR.asn1.ASN1Object - superclass
+ */
+KJUR.asn1.DERAbstractTime = function(params) {
+    KJUR.asn1.DERAbstractTime.superclass.constructor.call(this);
+    var s = null;
+    var date = null;
+
+    // --- PRIVATE METHODS --------------------
+    this.localDateToUTC = function(d) {
+	utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+	var utcDate = new Date(utc);
+	return utcDate;
+    };
+
+    this.formatDate = function(dateObject, type) {
+	var pad = this.zeroPadding;
+	var d = this.localDateToUTC(dateObject);
+	var year = String(d.getFullYear());
+	if (type == 'utc') year = year.substr(2, 2);
+	var month = pad(String(d.getMonth() + 1), 2);
+	var day = pad(String(d.getDate()), 2);
+	var hour = pad(String(d.getHours()), 2);
+	var min = pad(String(d.getMinutes()), 2);
+	var sec = pad(String(d.getSeconds()), 2);
+	return year + month + day + hour + min + sec + 'Z';
+    };
+
+    this.zeroPadding = function(s, len) {
+	if (s.length >= len) return s;
+	return new Array(len - s.length + 1).join('0') + s;
+    };
+
+    // --- PUBLIC METHODS --------------------
+    /**
+     * get string value of this string object
+     * @name getString
+     * @memberOf KJUR.asn1.DERAbstractTime
+     * @function
+     * @return {String} string value of this time object
+     */
+    this.getString = function() {
+	return this.s;
+    };
+
+    /**
+     * set value by a string
+     * @name setString
+     * @memberOf KJUR.asn1.DERAbstractTime
+     * @function
+     * @param {String} newS value by a string to set such like "130430235959Z"
+     */
+    this.setString = function(newS) {
+	this.hTLV = null;
+	this.isModified = true;
+	this.s = newS;
+	this.hV = stohex(this.s);
+    };
+
+    /**
+     * set value by a Date object
+     * @name setByDateValue
+     * @memberOf KJUR.asn1.DERAbstractTime
+     * @function
+     * @param {Integer} year year of date (ex. 2013)
+     * @param {Integer} month month of date between 1 and 12 (ex. 12)
+     * @param {Integer} day day of month
+     * @param {Integer} hour hours of date
+     * @param {Integer} min minutes of date
+     * @param {Integer} sec seconds of date
+     */
+    this.setByDateValue = function(year, month, day, hour, min, sec) {
+	var dateObject = new Date(Date.UTC(year, month - 1, day, hour, min, sec, 0));
+	this.setByDate(dateObject);
+    };
+
+    this.getFreshValueHex = function() {
+	return this.hV;
+    };
+};
+JSX.extend(KJUR.asn1.DERAbstractTime, KJUR.asn1.ASN1Object);
+// == END   DERAbstractTime ==================================================
+
+// == BEGIN DERAbstractStructured ============================================
+/**
+ * base class for ASN.1 DER structured class
+ * @name KJUR.asn1.DERAbstractStructured
+ * @class base class for ASN.1 DER structured class
+ * @property {Array} asn1Array internal array of ASN1Object
+ * @extends KJUR.asn1.ASN1Object
+ * @description
+ * @see KJUR.asn1.ASN1Object - superclass
+ */
+KJUR.asn1.DERAbstractStructured = function(params) {
+    KJUR.asn1.DERAbstractString.superclass.constructor.call(this);
+    var asn1Array = null;
+
+    /**
+     * set value by array of ASN1Object
+     * @name setByASN1ObjectArray
+     * @memberOf KJUR.asn1.DERAbstractStructured
+     * @function
+     * @param {array} asn1ObjectArray array of ASN1Object to set
+     */
+    this.setByASN1ObjectArray = function(asn1ObjectArray) {
+	this.hTLV = null;
+	this.isModified = true;
+	this.asn1Array = asn1ObjectArray;
+    };
+
+    /**
+     * append an ASN1Object to internal array
+     * @name appendASN1Object
+     * @memberOf KJUR.asn1.DERAbstractStructured
+     * @function
+     * @param {ASN1Object} asn1Object to add
+     */
+    this.appendASN1Object = function(asn1Object) {
+	this.hTLV = null;
+	this.isModified = true;
+	this.asn1Array.push(asn1Object);
+    };
+
+    this.asn1Array = new Array();
+    if (typeof params != "undefined") {
+	if (typeof params['array'] != "undefined") {
+	    this.asn1Array = params['array'];
+	}
+    }
+};
+JSX.extend(KJUR.asn1.DERAbstractStructured, KJUR.asn1.ASN1Object);
+
+
+// ********************************************************************
+//  ASN.1 Object Classes
+// ********************************************************************
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER Boolean
+ * @name KJUR.asn1.DERBoolean
+ * @class class for ASN.1 DER Boolean
+ * @extends KJUR.asn1.ASN1Object
+ * @description
+ * @see KJUR.asn1.ASN1Object - superclass
+ */
+KJUR.asn1.DERBoolean = function() {
+    KJUR.asn1.DERBoolean.superclass.constructor.call(this);
+    this.hT = "01";
+    this.hTLV = "0101ff";
+};
+JSX.extend(KJUR.asn1.DERBoolean, KJUR.asn1.ASN1Object);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER Integer
+ * @name KJUR.asn1.DERInteger
+ * @class class for ASN.1 DER Integer
+ * @extends KJUR.asn1.ASN1Object
+ * @description
+ * <br/>
+ * As for argument 'params' for constructor, you can specify one of
+ * following properties:
+ * <ul>
+ * <li>int - specify initial ASN.1 value(V) by integer value</li>
+ * <li>bigint - specify initial ASN.1 value(V) by BigInteger object</li>
+ * <li>hex - specify initial ASN.1 value(V) by a hexadecimal string</li>
+ * </ul>
+ * NOTE: 'params' can be omitted.
+ */
+KJUR.asn1.DERInteger = function(params) {
+    KJUR.asn1.DERInteger.superclass.constructor.call(this);
+    this.hT = "02";
+
+    /**
+     * set value by Tom Wu's BigInteger object
+     * @name setByBigInteger
+     * @memberOf KJUR.asn1.DERInteger
+     * @function
+     * @param {BigInteger} bigIntegerValue to set
+     */
+    this.setByBigInteger = function(bigIntegerValue) {
+	this.hTLV = null;
+	this.isModified = true;
+	this.hV = KJUR.asn1.ASN1Util.bigIntToMinTwosComplementsHex(bigIntegerValue);
+    };
+
+    /**
+     * set value by integer value
+     * @name setByInteger
+     * @memberOf KJUR.asn1.DERInteger
+     * @function
+     * @param {Integer} integer value to set
+     */
+    this.setByInteger = function(intValue) {
+	var bi = new BigInteger(String(intValue), 10);
+	this.setByBigInteger(bi);
+    };
+
+    /**
+     * set value by integer value
+     * @name setValueHex
+     * @memberOf KJUR.asn1.DERInteger
+     * @function
+     * @param {String} hexadecimal string of integer value
+     * @description
+     * <br/>
+     * NOTE: Value shall be represented by minimum octet length of
+     * two's complement representation.
+     */
+    this.setValueHex = function(newHexString) {
+	this.hV = newHexString;
+    };
+
+    this.getFreshValueHex = function() {
+	return this.hV;
+    };
+
+    if (typeof params != "undefined") {
+	if (typeof params['bigint'] != "undefined") {
+	    this.setByBigInteger(params['bigint']);
+	} else if (typeof params['int'] != "undefined") {
+	    this.setByInteger(params['int']);
+	} else if (typeof params['hex'] != "undefined") {
+	    this.setValueHex(params['hex']);
+	}
+    }
+};
+JSX.extend(KJUR.asn1.DERInteger, KJUR.asn1.ASN1Object);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER encoded BitString primitive
+ * @name KJUR.asn1.DERBitString
+ * @class class for ASN.1 DER encoded BitString primitive
+ * @extends KJUR.asn1.ASN1Object
+ * @description 
+ * <br/>
+ * As for argument 'params' for constructor, you can specify one of
+ * following properties:
+ * <ul>
+ * <li>bin - specify binary string (ex. '10111')</li>
+ * <li>array - specify array of boolean (ex. [true,false,true,true])</li>
+ * <li>hex - specify hexadecimal string of ASN.1 value(V) including unused bits</li>
+ * </ul>
+ * NOTE: 'params' can be omitted.
+ */
+KJUR.asn1.DERBitString = function(params) {
+    KJUR.asn1.DERBitString.superclass.constructor.call(this);
+    this.hT = "03";
+
+    /**
+     * set ASN.1 value(V) by a hexadecimal string including unused bits
+     * @name setHexValueIncludingUnusedBits
+     * @memberOf KJUR.asn1.DERBitString
+     * @function
+     * @param {String} newHexStringIncludingUnusedBits
+     */
+    this.setHexValueIncludingUnusedBits = function(newHexStringIncludingUnusedBits) {
+	this.hTLV = null;
+	this.isModified = true;
+	this.hV = newHexStringIncludingUnusedBits;
+    };
+
+    /**
+     * set ASN.1 value(V) by unused bit and hexadecimal string of value
+     * @name setUnusedBitsAndHexValue
+     * @memberOf KJUR.asn1.DERBitString
+     * @function
+     * @param {Integer} unusedBits
+     * @param {String} hValue
+     */
+    this.setUnusedBitsAndHexValue = function(unusedBits, hValue) {
+	if (unusedBits < 0 || 7 < unusedBits) {
+	    throw "unused bits shall be from 0 to 7: u = " + unusedBits;
+	}
+	var hUnusedBits = "0" + unusedBits;
+	this.hTLV = null;
+	this.isModified = true;
+	this.hV = hUnusedBits + hValue;
+    };
+
+    /**
+     * set ASN.1 DER BitString by binary string
+     * @name setByBinaryString
+     * @memberOf KJUR.asn1.DERBitString
+     * @function
+     * @param {String} binaryString binary value string (i.e. '10111')
+     * @description
+     * Its unused bits will be calculated automatically by length of 
+     * 'binaryValue'. <br/>
+     * NOTE: Trailing zeros '0' will be ignored.
+     */
+    this.setByBinaryString = function(binaryString) {
+	binaryString = binaryString.replace(/0+$/, '');
+	var unusedBits = 8 - binaryString.length % 8;
+	if (unusedBits == 8) unusedBits = 0;
+	for (var i = 0; i <= unusedBits; i++) {
+	    binaryString += '0';
+	}
+	var h = '';
+	for (var i = 0; i < binaryString.length - 1; i += 8) {
+	    var b = binaryString.substr(i, 8);
+	    var x = parseInt(b, 2).toString(16);
+	    if (x.length == 1) x = '0' + x;
+	    h += x;  
+	}
+	this.hTLV = null;
+	this.isModified = true;
+	this.hV = '0' + unusedBits + h;
+    };
+
+    /**
+     * set ASN.1 TLV value(V) by an array of boolean
+     * @name setByBooleanArray
+     * @memberOf KJUR.asn1.DERBitString
+     * @function
+     * @param {array} booleanArray array of boolean (ex. [true, false, true])
+     * @description
+     * NOTE: Trailing falses will be ignored.
+     */
+    this.setByBooleanArray = function(booleanArray) {
+	var s = '';
+	for (var i = 0; i < booleanArray.length; i++) {
+	    if (booleanArray[i] == true) {
+		s += '1';
+	    } else {
+		s += '0';
+	    }
+	}
+	this.setByBinaryString(s);
+    };
+
+    /**
+     * generate an array of false with specified length
+     * @name newFalseArray
+     * @memberOf KJUR.asn1.DERBitString
+     * @function
+     * @param {Integer} nLength length of array to generate
+     * @return {array} array of boolean faluse
+     * @description
+     * This static method may be useful to initialize boolean array.
+     */
+    this.newFalseArray = function(nLength) {
+	var a = new Array(nLength);
+	for (var i = 0; i < nLength; i++) {
+	    a[i] = false;
+	}
+	return a;
+    };
+
+    this.getFreshValueHex = function() {
+	return this.hV;
+    };
+
+    if (typeof params != "undefined") {
+	if (typeof params['hex'] != "undefined") {
+	    this.setHexValueIncludingUnusedBits(params['hex']);
+	} else if (typeof params['bin'] != "undefined") {
+	    this.setByBinaryString(params['bin']);
+	} else if (typeof params['array'] != "undefined") {
+	    this.setByBooleanArray(params['array']);
+	}
+    }
+};
+JSX.extend(KJUR.asn1.DERBitString, KJUR.asn1.ASN1Object);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER OctetString
+ * @name KJUR.asn1.DEROctetString
+ * @class class for ASN.1 DER OctetString
+ * @param {Array} params associative array of parameters (ex. {'str': 'aaa'})
+ * @extends KJUR.asn1.DERAbstractString
+ * @description
+ * @see KJUR.asn1.DERAbstractString - superclass
+ */
+KJUR.asn1.DEROctetString = function(params) {
+    KJUR.asn1.DEROctetString.superclass.constructor.call(this, params);
+    this.hT = "04";
+};
+JSX.extend(KJUR.asn1.DEROctetString, KJUR.asn1.DERAbstractString);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER Null
+ * @name KJUR.asn1.DERNull
+ * @class class for ASN.1 DER Null
+ * @extends KJUR.asn1.ASN1Object
+ * @description
+ * @see KJUR.asn1.ASN1Object - superclass
+ */
+KJUR.asn1.DERNull = function() {
+    KJUR.asn1.DERNull.superclass.constructor.call(this);
+    this.hT = "05";
+    this.hTLV = "0500";
+};
+JSX.extend(KJUR.asn1.DERNull, KJUR.asn1.ASN1Object);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER ObjectIdentifier
+ * @name KJUR.asn1.DERObjectIdentifier
+ * @class class for ASN.1 DER ObjectIdentifier
+ * @param {Array} params associative array of parameters (ex. {'oid': '2.5.4.5'})
+ * @extends KJUR.asn1.ASN1Object
+ * @description
+ * <br/>
+ * As for argument 'params' for constructor, you can specify one of
+ * following properties:
+ * <ul>
+ * <li>oid - specify initial ASN.1 value(V) by a oid string (ex. 2.5.4.13)</li>
+ * <li>hex - specify initial ASN.1 value(V) by a hexadecimal string</li>
+ * </ul>
+ * NOTE: 'params' can be omitted.
+ */
+KJUR.asn1.DERObjectIdentifier = function(params) {
+    var itox = function(i) {
+	var h = i.toString(16);
+	if (h.length == 1) h = '0' + h;
+	return h;
+    };
+    var roidtox = function(roid) {
+	var h = '';
+	var bi = new BigInteger(roid, 10);
+	var b = bi.toString(2);
+	var padLen = 7 - b.length % 7;
+	if (padLen == 7) padLen = 0;
+	var bPad = '';
+	for (var i = 0; i < padLen; i++) bPad += '0';
+	b = bPad + b;
+	for (var i = 0; i < b.length - 1; i += 7) {
+	    var b8 = b.substr(i, 7);
+	    if (i != b.length - 7) b8 = '1' + b8;
+	    h += itox(parseInt(b8, 2));
+	}
+	return h;
+    }
+
+    KJUR.asn1.DERObjectIdentifier.superclass.constructor.call(this);
+    this.hT = "06";
+
+    /**
+     * set value by a hexadecimal string
+     * @name setValueHex
+     * @memberOf KJUR.asn1.DERObjectIdentifier
+     * @function
+     * @param {String} newHexString hexadecimal value of OID bytes
+     */
+    this.setValueHex = function(newHexString) {
+	this.hTLV = null;
+	this.isModified = true;
+	this.s = null;
+	this.hV = newHexString;
+    };
+
+    /**
+     * set value by a OID string
+     * @name setValueOidString
+     * @memberOf KJUR.asn1.DERObjectIdentifier
+     * @function
+     * @param {String} oidString OID string (ex. 2.5.4.13)
+     */
+    this.setValueOidString = function(oidString) {
+	if (! oidString.match(/^[0-9.]+$/)) {
+	    throw "malformed oid string: " + oidString;
+	}
+	var h = '';
+	var a = oidString.split('.');
+	var i0 = parseInt(a[0]) * 40 + parseInt(a[1]);
+	h += itox(i0);
+	a.splice(0, 2);
+	for (var i = 0; i < a.length; i++) {
+	    h += roidtox(a[i]);
+	}
+	this.hTLV = null;
+	this.isModified = true;
+	this.s = null;
+	this.hV = h;
+    };
+
+    /**
+     * set value by a OID name
+     * @name setValueName
+     * @memberOf KJUR.asn1.DERObjectIdentifier
+     * @function
+     * @param {String} oidName OID name (ex. 'serverAuth')
+     * @since 1.0.1
+     * @description
+     * OID name shall be defined in 'KJUR.asn1.x509.OID.name2oidList'.
+     * Otherwise raise error.
+     */
+    this.setValueName = function(oidName) {
+	if (typeof KJUR.asn1.x509.OID.name2oidList[oidName] != "undefined") {
+	    var oid = KJUR.asn1.x509.OID.name2oidList[oidName];
+	    this.setValueOidString(oid);
+	} else {
+	    throw "DERObjectIdentifier oidName undefined: " + oidName;
+	}
+    };
+
+    this.getFreshValueHex = function() {
+	return this.hV;
+    };
+
+    if (typeof params != "undefined") {
+	if (typeof params['oid'] != "undefined") {
+	    this.setValueOidString(params['oid']);
+	} else if (typeof params['hex'] != "undefined") {
+	    this.setValueHex(params['hex']);
+	} else if (typeof params['name'] != "undefined") {
+	    this.setValueName(params['name']);
+	}
+    }
+};
+JSX.extend(KJUR.asn1.DERObjectIdentifier, KJUR.asn1.ASN1Object);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER UTF8String
+ * @name KJUR.asn1.DERUTF8String
+ * @class class for ASN.1 DER UTF8String
+ * @param {Array} params associative array of parameters (ex. {'str': 'aaa'})
+ * @extends KJUR.asn1.DERAbstractString
+ * @description
+ * @see KJUR.asn1.DERAbstractString - superclass
+ */
+KJUR.asn1.DERUTF8String = function(params) {
+    KJUR.asn1.DERUTF8String.superclass.constructor.call(this, params);
+    this.hT = "0c";
+};
+JSX.extend(KJUR.asn1.DERUTF8String, KJUR.asn1.DERAbstractString);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER NumericString
+ * @name KJUR.asn1.DERNumericString
+ * @class class for ASN.1 DER NumericString
+ * @param {Array} params associative array of parameters (ex. {'str': 'aaa'})
+ * @extends KJUR.asn1.DERAbstractString
+ * @description
+ * @see KJUR.asn1.DERAbstractString - superclass
+ */
+KJUR.asn1.DERNumericString = function(params) {
+    KJUR.asn1.DERNumericString.superclass.constructor.call(this, params);
+    this.hT = "12";
+};
+JSX.extend(KJUR.asn1.DERNumericString, KJUR.asn1.DERAbstractString);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER PrintableString
+ * @name KJUR.asn1.DERPrintableString
+ * @class class for ASN.1 DER PrintableString
+ * @param {Array} params associative array of parameters (ex. {'str': 'aaa'})
+ * @extends KJUR.asn1.DERAbstractString
+ * @description
+ * @see KJUR.asn1.DERAbstractString - superclass
+ */
+KJUR.asn1.DERPrintableString = function(params) {
+    KJUR.asn1.DERPrintableString.superclass.constructor.call(this, params);
+    this.hT = "13";
+};
+JSX.extend(KJUR.asn1.DERPrintableString, KJUR.asn1.DERAbstractString);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER TeletexString
+ * @name KJUR.asn1.DERTeletexString
+ * @class class for ASN.1 DER TeletexString
+ * @param {Array} params associative array of parameters (ex. {'str': 'aaa'})
+ * @extends KJUR.asn1.DERAbstractString
+ * @description
+ * @see KJUR.asn1.DERAbstractString - superclass
+ */
+KJUR.asn1.DERTeletexString = function(params) {
+    KJUR.asn1.DERTeletexString.superclass.constructor.call(this, params);
+    this.hT = "14";
+};
+JSX.extend(KJUR.asn1.DERTeletexString, KJUR.asn1.DERAbstractString);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER IA5String
+ * @name KJUR.asn1.DERIA5String
+ * @class class for ASN.1 DER IA5String
+ * @param {Array} params associative array of parameters (ex. {'str': 'aaa'})
+ * @extends KJUR.asn1.DERAbstractString
+ * @description
+ * @see KJUR.asn1.DERAbstractString - superclass
+ */
+KJUR.asn1.DERIA5String = function(params) {
+    KJUR.asn1.DERIA5String.superclass.constructor.call(this, params);
+    this.hT = "16";
+};
+JSX.extend(KJUR.asn1.DERIA5String, KJUR.asn1.DERAbstractString);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER UTCTime
+ * @name KJUR.asn1.DERUTCTime
+ * @class class for ASN.1 DER UTCTime
+ * @param {Array} params associative array of parameters (ex. {'str': '130430235959Z'})
+ * @extends KJUR.asn1.DERAbstractTime
+ * @description
+ * <br/>
+ * As for argument 'params' for constructor, you can specify one of
+ * following properties:
+ * <ul>
+ * <li>str - specify initial ASN.1 value(V) by a string (ex.'130430235959Z')</li>
+ * <li>hex - specify initial ASN.1 value(V) by a hexadecimal string</li>
+ * <li>date - specify Date object.</li>
+ * </ul>
+ * NOTE: 'params' can be omitted.
+ * <h4>EXAMPLES</h4>
+ * @example
+ * var d1 = new KJUR.asn1.DERUTCTime();
+ * d1.setString('130430125959Z');
+ *
+ * var d2 = new KJUR.asn1.DERUTCTime({'str': '130430125959Z'});
+ *
+ * var d3 = new KJUR.asn1.DERUTCTime({'date': new Date(Date.UTC(2015, 0, 31, 0, 0, 0, 0))});
+ */
+KJUR.asn1.DERUTCTime = function(params) {
+    KJUR.asn1.DERUTCTime.superclass.constructor.call(this, params);
+    this.hT = "17";
+
+    /**
+     * set value by a Date object
+     * @name setByDate
+     * @memberOf KJUR.asn1.DERUTCTime
+     * @function
+     * @param {Date} dateObject Date object to set ASN.1 value(V)
+     */
+    this.setByDate = function(dateObject) {
+	this.hTLV = null;
+	this.isModified = true;
+	this.date = dateObject;
+	this.s = this.formatDate(this.date, 'utc');
+	this.hV = stohex(this.s);
+    };
+
+    if (typeof params != "undefined") {
+	if (typeof params['str'] != "undefined") {
+	    this.setString(params['str']);
+	} else if (typeof params['hex'] != "undefined") {
+	    this.setStringHex(params['hex']);
+	} else if (typeof params['date'] != "undefined") {
+	    this.setByDate(params['date']);
+	}
+    }
+};
+JSX.extend(KJUR.asn1.DERUTCTime, KJUR.asn1.DERAbstractTime);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER GeneralizedTime
+ * @name KJUR.asn1.DERGeneralizedTime
+ * @class class for ASN.1 DER GeneralizedTime
+ * @param {Array} params associative array of parameters (ex. {'str': '20130430235959Z'})
+ * @extends KJUR.asn1.DERAbstractTime
+ * @description
+ * <br/>
+ * As for argument 'params' for constructor, you can specify one of
+ * following properties:
+ * <ul>
+ * <li>str - specify initial ASN.1 value(V) by a string (ex.'20130430235959Z')</li>
+ * <li>hex - specify initial ASN.1 value(V) by a hexadecimal string</li>
+ * <li>date - specify Date object.</li>
+ * </ul>
+ * NOTE: 'params' can be omitted.
+ */
+KJUR.asn1.DERGeneralizedTime = function(params) {
+    KJUR.asn1.DERGeneralizedTime.superclass.constructor.call(this, params);
+    this.hT = "18";
+
+    /**
+     * set value by a Date object
+     * @name setByDate
+     * @memberOf KJUR.asn1.DERGeneralizedTime
+     * @function
+     * @param {Date} dateObject Date object to set ASN.1 value(V)
+     * @example
+     * When you specify UTC time, use 'Date.UTC' method like this:<br/>
+     * var o = new DERUTCTime();
+     * var date = new Date(Date.UTC(2015, 0, 31, 23, 59, 59, 0)); #2015JAN31 23:59:59
+     * o.setByDate(date);
+     */
+    this.setByDate = function(dateObject) {
+	this.hTLV = null;
+	this.isModified = true;
+	this.date = dateObject;
+	this.s = this.formatDate(this.date, 'gen');
+	this.hV = stohex(this.s);
+    };
+
+    if (typeof params != "undefined") {
+	if (typeof params['str'] != "undefined") {
+	    this.setString(params['str']);
+	} else if (typeof params['hex'] != "undefined") {
+	    this.setStringHex(params['hex']);
+	} else if (typeof params['date'] != "undefined") {
+	    this.setByDate(params['date']);
+	}
+    }
+};
+JSX.extend(KJUR.asn1.DERGeneralizedTime, KJUR.asn1.DERAbstractTime);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER Sequence
+ * @name KJUR.asn1.DERSequence
+ * @class class for ASN.1 DER Sequence
+ * @extends KJUR.asn1.DERAbstractStructured
+ * @description
+ * <br/>
+ * As for argument 'params' for constructor, you can specify one of
+ * following properties:
+ * <ul>
+ * <li>array - specify array of ASN1Object to set elements of content</li>
+ * </ul>
+ * NOTE: 'params' can be omitted.
+ */
+KJUR.asn1.DERSequence = function(params) {
+    KJUR.asn1.DERSequence.superclass.constructor.call(this, params);
+    this.hT = "30";
+    this.getFreshValueHex = function() {
+	var h = '';
+	for (var i = 0; i < this.asn1Array.length; i++) {
+	    var asn1Obj = this.asn1Array[i];
+	    h += asn1Obj.getEncodedHex();
+	}
+	this.hV = h;
+	return this.hV;
+    };
+};
+JSX.extend(KJUR.asn1.DERSequence, KJUR.asn1.DERAbstractStructured);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER Set
+ * @name KJUR.asn1.DERSet
+ * @class class for ASN.1 DER Set
+ * @extends KJUR.asn1.DERAbstractStructured
+ * @description
+ * <br/>
+ * As for argument 'params' for constructor, you can specify one of
+ * following properties:
+ * <ul>
+ * <li>array - specify array of ASN1Object to set elements of content</li>
+ * </ul>
+ * NOTE: 'params' can be omitted.
+ */
+KJUR.asn1.DERSet = function(params) {
+    KJUR.asn1.DERSet.superclass.constructor.call(this, params);
+    this.hT = "31";
+    this.getFreshValueHex = function() {
+	var a = new Array();
+	for (var i = 0; i < this.asn1Array.length; i++) {
+	    var asn1Obj = this.asn1Array[i];
+	    a.push(asn1Obj.getEncodedHex());
+	}
+	a.sort();
+	this.hV = a.join('');
+	return this.hV;
+    };
+};
+JSX.extend(KJUR.asn1.DERSet, KJUR.asn1.DERAbstractStructured);
+
+// ********************************************************************
+/**
+ * class for ASN.1 DER TaggedObject
+ * @name KJUR.asn1.DERTaggedObject
+ * @class class for ASN.1 DER TaggedObject
+ * @extends KJUR.asn1.ASN1Object
+ * @description
+ * <br/>
+ * Parameter 'tagNoNex' is ASN.1 tag(T) value for this object.
+ * For example, if you find '[1]' tag in a ASN.1 dump, 
+ * 'tagNoHex' will be 'a1'.
+ * <br/>
+ * As for optional argument 'params' for constructor, you can specify *ANY* of
+ * following properties:
+ * <ul>
+ * <li>explicit - specify true if this is explicit tag otherwise false 
+ *     (default is 'true').</li>
+ * <li>tag - specify tag (default is 'a0' which means [0])</li>
+ * <li>obj - specify ASN1Object which is tagged</li>
+ * </ul>
+ * @example
+ * d1 = new KJUR.asn1.DERUTF8String({'str':'a'});
+ * d2 = new KJUR.asn1.DERTaggedObject({'obj': d1});
+ * hex = d2.getEncodedHex();
+ */
+KJUR.asn1.DERTaggedObject = function(params) {
+    KJUR.asn1.DERTaggedObject.superclass.constructor.call(this);
+    this.hT = "a0";
+    this.hV = '';
+    this.isExplicit = true;
+    this.asn1Object = null;
+
+    /**
+     * set value by an ASN1Object
+     * @name setString
+     * @memberOf KJUR.asn1.DERTaggedObject
+     * @function
+     * @param {Boolean} isExplicitFlag flag for explicit/implicit tag
+     * @param {Integer} tagNoHex hexadecimal string of ASN.1 tag
+     * @param {ASN1Object} asn1Object ASN.1 to encapsulate
+     */
+    this.setASN1Object = function(isExplicitFlag, tagNoHex, asn1Object) {
+	this.hT = tagNoHex;
+	this.isExplicit = isExplicitFlag;
+	this.asn1Object = asn1Object;
+	if (this.isExplicit) {
+	    this.hV = this.asn1Object.getEncodedHex();
+	    this.hTLV = null;
+	    this.isModified = true;
+	} else {
+	    this.hV = null;
+	    this.hTLV = asn1Object.getEncodedHex();
+	    this.hTLV = this.hTLV.replace(/^../, tagNoHex);
+	    this.isModified = false;
+	}
+    };
+
+    this.getFreshValueHex = function() {
+	return this.hV;
+    };
+
+    if (typeof params != "undefined") {
+	if (typeof params['tag'] != "undefined") {
+	    this.hT = params['tag'];
+	}
+	if (typeof params['explicit'] != "undefined") {
+	    this.isExplicit = params['explicit'];
+	}
+	if (typeof params['obj'] != "undefined") {
+	    this.asn1Object = params['obj'];
+	    this.setASN1Object(this.isExplicit, this.hT, this.asn1Object);
+	}
+    }
+};
+JSX.extend(KJUR.asn1.DERTaggedObject, KJUR.asn1.ASN1Object);
+// Hex JavaScript decoder
+// Copyright (c) 2008-2013 Lapo Luchini <lapo@lapo.it>
+
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+// ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+// ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+// OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+/*jshint browser: true, strict: true, immed: true, latedef: true, undef: true, regexdash: false */
+(function (root) {
+"use strict";
+
+var Hex = {},
+    decoder;
+
+Hex.decode = function(a) {
+    var i;
+    if (decoder === undefined) {
+        var hex = "0123456789ABCDEF",
+            ignore = " \f\n\r\t\u00A0\u2028\u2029";
+        decoder = [];
+        for (i = 0; i < 16; ++i)
+            decoder[hex.charAt(i)] = i;
+        hex = hex.toLowerCase();
+        for (i = 10; i < 16; ++i)
+            decoder[hex.charAt(i)] = i;
+        for (i = 0; i < ignore.length; ++i)
+            decoder[ignore.charAt(i)] = -1;
+    }
+    var out = [],
+        bits = 0,
+        char_count = 0;
+    for (i = 0; i < a.length; ++i) {
+        var c = a.charAt(i);
+        if (c == '=')
+            break;
+        c = decoder[c];
+        if (c == -1)
+            continue;
+        if (c === undefined)
+            throw 'Illegal character at offset ' + i;
+        bits |= c;
+        if (++char_count >= 2) {
+            out[out.length] = bits;
+            bits = 0;
+            char_count = 0;
+        } else {
+            bits <<= 4;
+        }
+    }
+    if (char_count)
+        throw "Hex encoding incomplete: 4 bits missing";
+    return out;
+};
+
+// export globals
+root.UnionHex = Hex;
+})(this);
+// Base64 JavaScript decoder
+// Copyright (c) 2008-2013 Lapo Luchini <lapo@lapo.it>
+
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+// ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+// ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+// OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+/*jshint browser: true, strict: true, immed: true, latedef: true, undef: true, regexdash: false */
+(function (root) {
+"use strict";
+
+var Base64 = {},
+    decoder;
+
+Base64.decode = function (a) {
+    var i;
+    if (decoder === undefined) {
+        var b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
+            ignore = "= \f\n\r\t\u00A0\u2028\u2029";
+        decoder = [];
+        for (i = 0; i < 64; ++i)
+            decoder[b64.charAt(i)] = i;
+        for (i = 0; i < ignore.length; ++i)
+            decoder[ignore.charAt(i)] = -1;
+    }
+    var out = [];
+    var bits = 0, char_count = 0;
+    for (i = 0; i < a.length; ++i) {
+        var c = a.charAt(i);
+        if (c == '=')
+            break;
+        c = decoder[c];
+        if (c == -1)
+            continue;
+        if (c === undefined)
+            throw 'Illegal character at offset ' + i;
+        bits |= c;
+        if (++char_count >= 4) {
+            out[out.length] = (bits >> 16);
+            out[out.length] = (bits >> 8) & 0xFF;
+            out[out.length] = bits & 0xFF;
+            bits = 0;
+            char_count = 0;
+        } else {
+            bits <<= 6;
+        }
+    }
+    switch (char_count) {
+      case 1:
+        throw "Base64 encoding incomplete: at least 2 bits missing";
+      case 2:
+        out[out.length] = (bits >> 10);
+        break;
+      case 3:
+        out[out.length] = (bits >> 16);
+        out[out.length] = (bits >> 8) & 0xFF;
+        break;
+    }
+    return out;
+};
+
+Base64.re = /-----BEGIN [^-]+-----([A-Za-z0-9+\/=\s]+)-----END [^-]+-----|begin-base64[^\n]+\n([A-Za-z0-9+\/=\s]+)====/;
+Base64.unarmor = function (a) {
+    var m = Base64.re.exec(a);
+    if (m) {
+        if (m[1])
+            a = m[1];
+        else if (m[2])
+            a = m[2];
+        else
+            throw "RegExp out of sync";
+    }
+    return Base64.decode(a);
+};
+
+// export globals
+root.UnionBase64 = Base64;
+})(this);
+// ASN.1 JavaScript decoder
+// Copyright (c) 2008-2013 Lapo Luchini <lapo@lapo.it>
+
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+// ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+// ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+// OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+/*jshint browser: true, strict: true, immed: true, latedef: true, undef: true, regexdash: false */
+/*global oids */
+(function (root) {
+"use strict";
+
+var hardLimit = 100,
+    ellipsis = "\u2026",
+    DOM = {
+        tag: function (tagName, className) {
+            var t = document.createElement(tagName);
+            t.className = className;
+            return t;
+        },
+        text: function (str) {
+            return document.createTextNode(str);
+        }
+    };
+
+function Stream(enc, pos) {
+    if (enc instanceof Stream) {
+        this.enc = enc.enc;
+        this.pos = enc.pos;
+    } else {
+        this.enc = enc;
+        this.pos = pos;
+    }
+}
+Stream.prototype.get = function (pos) {
+    if (pos === undefined)
+        pos = this.pos++;
+    if (pos >= this.enc.length)
+        throw 'Requesting byte offset ' + pos + ' on a stream of length ' + this.enc.length;
+    return this.enc[pos];
+};
+Stream.prototype.hexDigits = "0123456789ABCDEF";
+Stream.prototype.hexByte = function (b) {
+    return this.hexDigits.charAt((b >> 4) & 0xF) + this.hexDigits.charAt(b & 0xF);
+};
+Stream.prototype.hexDump = function (start, end, raw) {
+    var s = "";
+    for (var i = start; i < end; ++i) {
+        s += this.hexByte(this.get(i));
+        if (raw !== true)
+            switch (i & 0xF) {
+            case 0x7: s += "  "; break;
+            case 0xF: s += "\n"; break;
+            default:  s += " ";
+            }
+    }
+    return s;
+};
+Stream.prototype.parseStringISO = function (start, end) {
+    var s = "";
+    for (var i = start; i < end; ++i)
+        s += String.fromCharCode(this.get(i));
+    return s;
+};
+Stream.prototype.parseStringUTF = function (start, end) {
+    var s = "";
+    for (var i = start; i < end; ) {
+        var c = this.get(i++);
+        if (c < 128)
+            s += String.fromCharCode(c);
+        else if ((c > 191) && (c < 224))
+            s += String.fromCharCode(((c & 0x1F) << 6) | (this.get(i++) & 0x3F));
+        else
+            s += String.fromCharCode(((c & 0x0F) << 12) | ((this.get(i++) & 0x3F) << 6) | (this.get(i++) & 0x3F));
+    }
+    return s;
+};
+Stream.prototype.parseStringBMP = function (start, end) {
+    var str = ""
+    for (var i = start; i < end; i += 2) {
+        var high_byte = this.get(i);
+        var low_byte = this.get(i + 1);
+        str += String.fromCharCode( (high_byte << 8) + low_byte );
+    }
+
+    return str;
+};
+Stream.prototype.reTime = /^((?:1[89]|2\d)?\d\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])([01]\d|2[0-3])(?:([0-5]\d)(?:([0-5]\d)(?:[.,](\d{1,3}))?)?)?(Z|[-+](?:[0]\d|1[0-2])([0-5]\d)?)?$/;
+Stream.prototype.parseTime = function (start, end) {
+    var s = this.parseStringISO(start, end),
+        m = this.reTime.exec(s);
+    if (!m)
+        return "Unrecognized time: " + s;
+    s = m[1] + "-" + m[2] + "-" + m[3] + " " + m[4];
+    if (m[5]) {
+        s += ":" + m[5];
+        if (m[6]) {
+            s += ":" + m[6];
+            if (m[7])
+                s += "." + m[7];
+        }
+    }
+    if (m[8]) {
+        s += " UTC";
+        if (m[8] != 'Z') {
+            s += m[8];
+            if (m[9])
+                s += ":" + m[9];
+        }
+    }
+    return s;
+};
+Stream.prototype.parseInteger = function (start, end) {
+    //TODO support negative numbers
+    var len = end - start;
+    if (len > 4) {
+        len <<= 3;
+        var s = this.get(start);
+        if (s === 0)
+            len -= 8;
+        else
+            while (s < 128) {
+                s <<= 1;
+                --len;
+            }
+        return "(" + len + " bit)";
+    }
+    var n = 0;
+    for (var i = start; i < end; ++i)
+        n = (n << 8) | this.get(i);
+    return n;
+};
+Stream.prototype.parseBitString = function (start, end) {
+    var unusedBit = this.get(start),
+        lenBit = ((end - start - 1) << 3) - unusedBit,
+        s = "(" + lenBit + " bit)";
+    if (lenBit <= 20) {
+        var skip = unusedBit;
+        s += " ";
+        for (var i = end - 1; i > start; --i) {
+            var b = this.get(i);
+            for (var j = skip; j < 8; ++j)
+                s += (b >> j) & 1 ? "1" : "0";
+            skip = 0;
+        }
+    }
+    return s;
+};
+Stream.prototype.parseOctetString = function (start, end) {
+    var len = end - start,
+        s = "(" + len + " byte) ";
+    if (len > hardLimit)
+        end = start + hardLimit;
+    for (var i = start; i < end; ++i)
+        s += this.hexByte(this.get(i)); //TODO: also try Latin1?
+    if (len > hardLimit)
+        s += ellipsis;
+    return s;
+};
+Stream.prototype.parseOID = function (start, end) {
+    var s = '',
+        n = 0,
+        bits = 0;
+    for (var i = start; i < end; ++i) {
+        var v = this.get(i);
+        n = (n << 7) | (v & 0x7F);
+        bits += 7;
+        if (!(v & 0x80)) { // finished
+            if (s === '') {
+                var m = n < 80 ? n < 40 ? 0 : 1 : 2;
+                s = m + "." + (n - m * 40);
+            } else
+                s += "." + ((bits >= 31) ? "bigint" : n);
+            n = bits = 0;
+        }
+    }
+    return s;
+};
+
+var ASN1 = function (stream, header, length, tag, sub) {
+    this.stream = stream;
+    this.header = header;
+    this.length = length;
+    this.tag = tag;
+    this.sub = sub;
+}
+ASN1.prototype.typeName = function () {
+    if (this.tag === undefined)
+        return "unknown";
+    var tagClass = this.tag >> 6,
+        tagConstructed = (this.tag >> 5) & 1,
+        tagNumber = this.tag & 0x1F;
+    switch (tagClass) {
+    case 0: // universal
+        switch (tagNumber) {
+        case 0x00: return "EOC";
+        case 0x01: return "BOOLEAN";
+        case 0x02: return "INTEGER";
+        case 0x03: return "BIT_STRING";
+        case 0x04: return "OCTET_STRING";
+        case 0x05: return "NULL";
+        case 0x06: return "OBJECT_IDENTIFIER";
+        case 0x07: return "ObjectDescriptor";
+        case 0x08: return "EXTERNAL";
+        case 0x09: return "REAL";
+        case 0x0A: return "ENUMERATED";
+        case 0x0B: return "EMBEDDED_PDV";
+        case 0x0C: return "UTF8String";
+        case 0x10: return "SEQUENCE";
+        case 0x11: return "SET";
+        case 0x12: return "NumericString";
+        case 0x13: return "PrintableString"; // ASCII subset
+        case 0x14: return "TeletexString"; // aka T61String
+        case 0x15: return "VideotexString";
+        case 0x16: return "IA5String"; // ASCII
+        case 0x17: return "UTCTime";
+        case 0x18: return "GeneralizedTime";
+        case 0x19: return "GraphicString";
+        case 0x1A: return "VisibleString"; // ASCII subset
+        case 0x1B: return "GeneralString";
+        case 0x1C: return "UniversalString";
+        case 0x1E: return "BMPString";
+        default:   return "Universal_" + tagNumber.toString(16);
+        }
+    case 1: return "Application_" + tagNumber.toString(16);
+    case 2: return "[" + tagNumber + "]"; // Context
+    case 3: return "Private_" + tagNumber.toString(16);
+    }
+};
+ASN1.prototype.reSeemsASCII = /^[ -~]+$/;
+ASN1.prototype.content = function () {
+    if (this.tag === undefined)
+        return null;
+    var tagClass = this.tag >> 6,
+        tagNumber = this.tag & 0x1F,
+        content = this.posContent(),
+        len = Math.abs(this.length);
+    if (tagClass !== 0) { // universal
+        if (this.sub !== null)
+            return "(" + this.sub.length + " elem)";
+        //TODO: TRY TO PARSE ASCII STRING
+        var s = this.stream.parseStringISO(content, content + Math.min(len, hardLimit));
+        if (this.reSeemsASCII.test(s))
+            return s.substring(0, 2 * hardLimit) + ((s.length > 2 * hardLimit) ? ellipsis : "");
+        else
+            return this.stream.parseOctetString(content, content + len);
+    }
+    switch (tagNumber) {
+    case 0x01: // BOOLEAN
+        return (this.stream.get(content) === 0) ? "false" : "true";
+    case 0x02: // INTEGER
+        return this.stream.parseInteger(content, content + len);
+    case 0x03: // BIT_STRING
+        return this.sub ? "(" + this.sub.length + " elem)" :
+            this.stream.parseBitString(content, content + len);
+    case 0x04: // OCTET_STRING
+        return this.sub ? "(" + this.sub.length + " elem)" :
+            this.stream.parseOctetString(content, content + len);
+    //case 0x05: // NULL
+    case 0x06: // OBJECT_IDENTIFIER
+        return this.stream.parseOID(content, content + len);
+    //case 0x07: // ObjectDescriptor
+    //case 0x08: // EXTERNAL
+    //case 0x09: // REAL
+    //case 0x0A: // ENUMERATED
+    //case 0x0B: // EMBEDDED_PDV
+    case 0x10: // SEQUENCE
+    case 0x11: // SET
+        return "(" + this.sub.length + " elem)";
+    case 0x0C: // UTF8String
+        return this.stream.parseStringUTF(content, content + len);
+    case 0x12: // NumericString
+    case 0x13: // PrintableString
+    case 0x14: // TeletexString
+    case 0x15: // VideotexString
+    case 0x16: // IA5String
+    //case 0x19: // GraphicString
+    case 0x1A: // VisibleString
+    //case 0x1B: // GeneralString
+    //case 0x1C: // UniversalString
+        return this.stream.parseStringISO(content, content + len);
+    case 0x1E: // BMPString
+        return this.stream.parseStringBMP(content, content + len);
+    case 0x17: // UTCTime
+    case 0x18: // GeneralizedTime
+        return this.stream.parseTime(content, content + len);
+    }
+    return null;
+};
+ASN1.prototype.toString = function () {
+    return this.typeName() + "@" + this.stream.pos + "[header:" + this.header + ",length:" + this.length + ",sub:" + ((this.sub === null) ? 'null' : this.sub.length) + "]";
+};
+ASN1.prototype.print = function (indent) {
+    if (indent === undefined) indent = '';
+    document.writeln(indent + this);
+    if (this.sub !== null) {
+        indent += '  ';
+        for (var i = 0, max = this.sub.length; i < max; ++i)
+            this.sub[i].print(indent);
+    }
+};
+ASN1.prototype.toPrettyString = function (indent) {
+    if (indent === undefined) indent = '';
+    var s = indent + this.typeName() + " @" + this.stream.pos;
+    if (this.length >= 0)
+        s += "+";
+    s += this.length;
+    if (this.tag & 0x20)
+        s += " (constructed)";
+    else if (((this.tag == 0x03) || (this.tag == 0x04)) && (this.sub !== null))
+        s += " (encapsulates)";
+    s += "\n";
+    if (this.sub !== null) {
+        indent += '  ';
+        for (var i = 0, max = this.sub.length; i < max; ++i)
+            s += this.sub[i].toPrettyString(indent);
+    }
+    return s;
+};
+ASN1.prototype.toDOM = function () {
+    var node = DOM.tag("div", "node");
+    node.asn1 = this;
+    var head = DOM.tag("div", "head");
+    var s = this.typeName().replace(/_/g, " ");
+    head.innerHTML = s;
+    var content = this.content();
+    if (content !== null) {
+        content = String(content).replace(/</g, "&lt;");
+        var preview = DOM.tag("span", "preview");
+        preview.appendChild(DOM.text(content));
+        head.appendChild(preview);
+    }
+    node.appendChild(head);
+    this.node = node;
+    this.head = head;
+    var value = DOM.tag("div", "value");
+    s = "Offset: " + this.stream.pos + "<br/>";
+    s += "Length: " + this.header + "+";
+    if (this.length >= 0)
+        s += this.length;
+    else
+        s += (-this.length) + " (undefined)";
+    if (this.tag & 0x20)
+        s += "<br/>(constructed)";
+    else if (((this.tag == 0x03) || (this.tag == 0x04)) && (this.sub !== null))
+        s += "<br/>(encapsulates)";
+    //TODO if (this.tag == 0x03) s += "Unused bits: "
+    if (content !== null) {
+        s += "<br/>Value:<br/><b>" + content + "</b>";
+        if ((typeof oids === 'object') && (this.tag == 0x06)) {
+            var oid = oids[content];
+            if (oid) {
+                if (oid.d) s += "<br/>" + oid.d;
+                if (oid.c) s += "<br/>" + oid.c;
+                if (oid.w) s += "<br/>(warning!)";
+            }
+        }
+    }
+    value.innerHTML = s;
+    node.appendChild(value);
+    var sub = DOM.tag("div", "sub");
+    if (this.sub !== null) {
+        for (var i = 0, max = this.sub.length; i < max; ++i)
+            sub.appendChild(this.sub[i].toDOM());
+    }
+    node.appendChild(sub);
+    head.onclick = function () {
+        node.className = (node.className == "node collapsed") ? "node" : "node collapsed";
+    };
+    return node;
+};
+ASN1.prototype.posStart = function () {
+    return this.stream.pos;
+};
+ASN1.prototype.posContent = function () {
+    return this.stream.pos + this.header;
+};
+ASN1.prototype.posEnd = function () {
+    return this.stream.pos + this.header + Math.abs(this.length);
+};
+ASN1.prototype.fakeHover = function (current) {
+    this.node.className += " hover";
+    if (current)
+        this.head.className += " hover";
+};
+ASN1.prototype.fakeOut = function (current) {
+    var re = / ?hover/;
+    this.node.className = this.node.className.replace(re, "");
+    if (current)
+        this.head.className = this.head.className.replace(re, "");
+};
+ASN1.prototype.toHexDOM_sub = function (node, className, stream, start, end) {
+    if (start >= end)
+        return;
+    var sub = DOM.tag("span", className);
+    sub.appendChild(DOM.text(
+        stream.hexDump(start, end)));
+    node.appendChild(sub);
+};
+ASN1.prototype.toHexDOM = function (root) {
+    var node = DOM.tag("span", "hex");
+    if (root === undefined) root = node;
+    this.head.hexNode = node;
+    this.head.onmouseover = function () { this.hexNode.className = "hexCurrent"; };
+    this.head.onmouseout  = function () { this.hexNode.className = "hex"; };
+    node.asn1 = this;
+    node.onmouseover = function () {
+        var current = !root.selected;
+        if (current) {
+            root.selected = this.asn1;
+            this.className = "hexCurrent";
+        }
+        this.asn1.fakeHover(current);
+    };
+    node.onmouseout  = function () {
+        var current = (root.selected == this.asn1);
+        this.asn1.fakeOut(current);
+        if (current) {
+            root.selected = null;
+            this.className = "hex";
+        }
+    };
+    this.toHexDOM_sub(node, "tag", this.stream, this.posStart(), this.posStart() + 1);
+    this.toHexDOM_sub(node, (this.length >= 0) ? "dlen" : "ulen", this.stream, this.posStart() + 1, this.posContent());
+    if (this.sub === null)
+        node.appendChild(DOM.text(
+            this.stream.hexDump(this.posContent(), this.posEnd())));
+    else if (this.sub.length > 0) {
+        var first = this.sub[0];
+        var last = this.sub[this.sub.length - 1];
+        this.toHexDOM_sub(node, "intro", this.stream, this.posContent(), first.posStart());
+        for (var i = 0, max = this.sub.length; i < max; ++i)
+            node.appendChild(this.sub[i].toHexDOM(root));
+        this.toHexDOM_sub(node, "outro", this.stream, last.posEnd(), this.posEnd());
+    }
+    return node;
+};
+ASN1.prototype.toHexString = function (root) {
+    return this.stream.hexDump(this.posStart(), this.posEnd(), true);
+};
+ASN1.decodeLength = function (stream) {
+    var buf = stream.get(),
+        len = buf & 0x7F;
+    if (len == buf)
+        return len;
+    if (len > 3)
+        throw "Length over 24 bits not supported at position " + (stream.pos - 1);
+    if (len === 0)
+        return -1; // undefined
+    buf = 0;
+    for (var i = 0; i < len; ++i)
+        buf = (buf << 8) | stream.get();
+    return buf;
+};
+ASN1.hasContent = function (tag, len, stream) {
+    if (tag & 0x20) // constructed
+        return true;
+    if ((tag < 0x03) || (tag > 0x04))
+        return false;
+    var p = new Stream(stream);
+    if (tag == 0x03) p.get(); // BitString unused bits, must be in [0, 7]
+    var subTag = p.get();
+    if ((subTag >> 6) & 0x01) // not (universal or context)
+        return false;
+    try {
+        var subLength = ASN1.decodeLength(p);
+        return ((p.pos - stream.pos) + subLength == len);
+    } catch (exception) {
+        return false;
+    }
+};
+ASN1.decode = function (stream) {
+    if (!(stream instanceof Stream))
+        stream = new Stream(stream, 0);
+    var streamStart = new Stream(stream),
+        tag = stream.get(),
+        len = ASN1.decodeLength(stream),
+        header = stream.pos - streamStart.pos,
+        sub = null;
+    if (ASN1.hasContent(tag, len, stream)) {
+        // it has content, so we decode it
+        var start = stream.pos;
+        if (tag == 0x03) stream.get(); // skip BitString unused bits, must be in [0, 7]
+        sub = [];
+        if (len >= 0) {
+            // definite length
+            var end = start + len;
+            while (stream.pos < end)
+                sub[sub.length] = ASN1.decode(stream);
+            if (stream.pos != end)
+                throw "Content size is not correct for container starting at offset " + start;
+        } else {
+            // undefined length
+            try {
+                for (;;) {
+                    var s = ASN1.decode(stream);
+                    if (s.tag === 0)
+                        break;
+                    sub[sub.length] = s;
+                }
+                len = start - stream.pos;
+            } catch (e) {
+                throw "Exception while decoding undefined length content: " + e;
+            }
+        }
+    } else
+        stream.pos += len; // skip content
+    return new ASN1(streamStart, header, len, tag, sub);
+};
+ASN1.test = function () {
+    var test = [
+        { value: [0x27],                   expected: 0x27     },
+        { value: [0x81, 0xC9],             expected: 0xC9     },
+        { value: [0x83, 0xFE, 0xDC, 0xBA], expected: 0xFEDCBA }
+    ];
+    for (var i = 0, max = test.length; i < max; ++i) {
+        var pos = 0,
+            stream = new Stream(test[i].value, 0),
+            res = ASN1.decodeLength(stream);
+        if (res != test[i].expected)
+            document.write("In test[" + i + "] expected " + test[i].expected + " got " + res + "\n");
+    }
+};
+
+// export globals
+root.ASN1 = ASN1;
+})(this);
+/**
+ * Retrieve the hexadecimal value (as a string) of the current ASN.1 element
+ * @returns {string}
+ * @public
+ */
+ASN1.prototype.getHexStringValue = function () {
+  var hexString = this.toHexString();
+  var offset = this.header * 2;
+  var length = this.length * 2;
+  return hexString.substr(offset, length);
+};
+
+/**
+ * Method to parse a pem encoded string containing both a public or private key.
+ * The method will translate the pem encoded string in a der encoded string and
+ * will parse private key and public key parameters. This method accepts public key
+ * in the rsaencryption pkcs #1 format (oid: 1.2.840.113549.1.1.1).
+ *
+ * @todo Check how many rsa formats use the same format of pkcs #1.
+ *
+ * The format is defined as:
+ * PublicKeyInfo ::= SEQUENCE {
+ *   algorithm       AlgorithmIdentifier,
+ *   PublicKey       BIT STRING
+ * }
+ * Where AlgorithmIdentifier is:
+ * AlgorithmIdentifier ::= SEQUENCE {
+ *   algorithm       OBJECT IDENTIFIER,     the OID of the enc algorithm
+ *   parameters      ANY DEFINED BY algorithm OPTIONAL (NULL for PKCS #1)
+ * }
+ * and PublicKey is a SEQUENCE encapsulated in a BIT STRING
+ * RSAPublicKey ::= SEQUENCE {
+ *   modulus           INTEGER,  -- n
+ *   publicExponent    INTEGER   -- e
+ * }
+ * it's possible to examine the structure of the keys obtained from openssl using
+ * an asn.1 dumper as the one used here to parse the components: http://lapo.it/asn1js/
+ * @argument {string} pem the pem encoded string, can include the BEGIN/END header/footer
+ * @private
+ */
+RSAKey.prototype.parseKey = function (pem) {
+  try {
+    var modulus = 0;
+    var public_exponent = 0;
+    var reHex = /^\s*(?:[0-9A-Fa-f][0-9A-Fa-f]\s*)+$/;
+    var der = reHex.test(pem) ? UnionHex.decode(pem) : UnionBase64.unarmor(pem);
+    var asn1;
+    try {
+      asn1 = ASN1.decode(der);
+    } catch(e) {
+      this.e = 65537;
+      this.n = parseBigInt('00' + pem, 16);
+      return true;
+    }
+    
+
+    //Fixes a bug with OpenSSL 1.0+ private keys
+    if(asn1.sub.length === 3){
+        asn1 = asn1.sub[2].sub[0];
+    }
+    if (asn1.sub.length === 9) {
+
+      // Parse the private key.
+      modulus = asn1.sub[1].getHexStringValue(); //bigint
+      this.n = parseBigInt(modulus, 16);
+
+      public_exponent = asn1.sub[2].getHexStringValue(); //int
+      this.e = parseInt(public_exponent, 16);
+
+      var private_exponent = asn1.sub[3].getHexStringValue(); //bigint
+      this.d = parseBigInt(private_exponent, 16);
+
+      var prime1 = asn1.sub[4].getHexStringValue(); //bigint
+      this.p = parseBigInt(prime1, 16);
+
+      var prime2 = asn1.sub[5].getHexStringValue(); //bigint
+      this.q = parseBigInt(prime2, 16);
+
+      var exponent1 = asn1.sub[6].getHexStringValue(); //bigint
+      this.dmp1 = parseBigInt(exponent1, 16);
+
+      var exponent2 = asn1.sub[7].getHexStringValue(); //bigint
+      this.dmq1 = parseBigInt(exponent2, 16);
+
+      var coefficient = asn1.sub[8].getHexStringValue(); //bigint
+      this.coeff = parseBigInt(coefficient, 16);
+
+    }
+    else if (asn1.sub.length === 2) {
+
+      // Parse the public key.
+      // var bit_string = asn1.sub[1];
+      // var sequence = bit_string.sub[0];
+
+      modulus = asn1.sub[0].getHexStringValue();
+      this.n = parseBigInt(modulus, 16);
+      public_exponent = asn1.sub[1].getHexStringValue();
+      this.e = parseInt(public_exponent, 16);
+
+    }
+    else {
+      return false;
+    }
+    return true;
+  }
+  catch (ex) {
+    return false;
+  }
+};
+
+/**
+ * Translate rsa parameters in a hex encoded string representing the rsa key.
+ *
+ * The translation follow the ASN.1 notation :
+ * RSAPrivateKey ::= SEQUENCE {
+ *   version           Version,
+ *   modulus           INTEGER,  -- n
+ *   publicExponent    INTEGER,  -- e
+ *   privateExponent   INTEGER,  -- d
+ *   prime1            INTEGER,  -- p
+ *   prime2            INTEGER,  -- q
+ *   exponent1         INTEGER,  -- d mod (p1)
+ *   exponent2         INTEGER,  -- d mod (q-1)
+ *   coefficient       INTEGER,  -- (inverse of q) mod p
+ * }
+ * @returns {string}  DER Encoded String representing the rsa private key
+ * @private
+ */
+RSAKey.prototype.getPrivateBaseKey = function () {
+  var options = {
+    'array': [
+      new KJUR.asn1.DERInteger({'int': 0}),
+      new KJUR.asn1.DERInteger({'bigint': this.n}),
+      new KJUR.asn1.DERInteger({'int': this.e}),
+      new KJUR.asn1.DERInteger({'bigint': this.d}),
+      new KJUR.asn1.DERInteger({'bigint': this.p}),
+      new KJUR.asn1.DERInteger({'bigint': this.q}),
+      new KJUR.asn1.DERInteger({'bigint': this.dmp1}),
+      new KJUR.asn1.DERInteger({'bigint': this.dmq1}),
+      new KJUR.asn1.DERInteger({'bigint': this.coeff})
+    ]
+  };
+  var seq = new KJUR.asn1.DERSequence(options);
+  return seq.getEncodedHex();
+};
+
+/**
+ * base64 (pem) encoded version of the DER encoded representation
+ * @returns {string} pem encoded representation without header and footer
+ * @public
+ */
+RSAKey.prototype.getPrivateBaseKeyB64 = function () {
+  return hex2b64(this.getPrivateBaseKey());
+};
+
+/**
+ * Translate rsa parameters in a hex encoded string representing the rsa public key.
+ * The representation follow the ASN.1 notation :
+ * PublicKeyInfo ::= SEQUENCE {
+ *   algorithm       AlgorithmIdentifier,
+ *   PublicKey       BIT STRING
+ * }
+ * Where AlgorithmIdentifier is:
+ * AlgorithmIdentifier ::= SEQUENCE {
+ *   algorithm       OBJECT IDENTIFIER,     the OID of the enc algorithm
+ *   parameters      ANY DEFINED BY algorithm OPTIONAL (NULL for PKCS #1)
+ * }
+ * and PublicKey is a SEQUENCE encapsulated in a BIT STRING
+ * RSAPublicKey ::= SEQUENCE {
+ *   modulus           INTEGER,  -- n
+ *   publicExponent    INTEGER   -- e
+ * }
+ * @returns {string} DER Encoded String representing the rsa public key
+ * @private
+ */
+RSAKey.prototype.getPublicBaseKey = function () {
+  var options = {
+    'array': [
+      new KJUR.asn1.DERObjectIdentifier({'oid': '1.2.840.113549.1.1.1'}), //RSA Encryption pkcs #1 oid
+      new KJUR.asn1.DERNull()
+    ]
+  };
+  var first_sequence = new KJUR.asn1.DERSequence(options);
+
+  options = {
+    'array': [
+      new KJUR.asn1.DERInteger({'bigint': this.n}),
+      new KJUR.asn1.DERInteger({'int': this.e})
+    ]
+  };
+  var second_sequence = new KJUR.asn1.DERSequence(options);
+
+  options = {
+    'hex': '00' + second_sequence.getEncodedHex()
+  };
+  var bit_string = new KJUR.asn1.DERBitString(options);
+
+  options = {
+    'array': [
+      first_sequence,
+      bit_string
+    ]
+  };
+  var seq = new KJUR.asn1.DERSequence(options);
+  return seq.getEncodedHex();
+};
+
+/**
+ * base64 (pem) encoded version of the DER encoded representation
+ * @returns {string} pem encoded representation without header and footer
+ * @public
+ */
+RSAKey.prototype.getPublicBaseKeyB64 = function () {
+  return hex2b64(this.getPublicBaseKey());
+};
+
+/**
+ * wrap the string in block of width chars. The default value for rsa keys is 64
+ * characters.
+ * @param {string} str the pem encoded string without header and footer
+ * @param {Number} [width=64] - the length the string has to be wrapped at
+ * @returns {string}
+ * @private
+ */
+RSAKey.prototype.wordwrap = function (str, width) {
+  width = width || 64;
+  if (!str) {
+    return str;
+  }
+  var regex = '(.{1,' + width + '})( +|$\n?)|(.{1,' + width + '})';
+  return str.match(RegExp(regex, 'g')).join('\n');
+};
+
+/**
+ * Retrieve the pem encoded private key
+ * @returns {string} the pem encoded private key with header/footer
+ * @public
+ */
+RSAKey.prototype.getPrivateKey = function () {
+  var key = "-----BEGIN RSA PRIVATE KEY-----\n";
+  key += this.wordwrap(this.getPrivateBaseKeyB64()) + "\n";
+  key += "-----END RSA PRIVATE KEY-----";
+  return key;
+};
+
+/**
+ * Retrieve the pem encoded public key
+ * @returns {string} the pem encoded public key with header/footer
+ * @public
+ */
+RSAKey.prototype.getPublicKey = function () {
+  var key = "-----BEGIN PUBLIC KEY-----\n";
+  key += this.wordwrap(this.getPublicBaseKeyB64()) + "\n";
+  key += "-----END PUBLIC KEY-----";
+  return key;
+};
+
+/**
+ * Check if the object contains the necessary parameters to populate the rsa modulus
+ * and public exponent parameters.
+ * @param {Object} [obj={}] - An object that may contain the two public key
+ * parameters
+ * @returns {boolean} true if the object contains both the modulus and the public exponent
+ * properties (n and e)
+ * @todo check for types of n and e. N should be a parseable bigInt object, E should
+ * be a parseable integer number
+ * @private
+ */
+RSAKey.prototype.hasPublicKeyProperty = function (obj) {
+  obj = obj || {};
+  return (
+    obj.hasOwnProperty('n') &&
+    obj.hasOwnProperty('e')
+  );
+};
+
+/**
+ * Check if the object contains ALL the parameters of an RSA key.
+ * @param {Object} [obj={}] - An object that may contain nine rsa key
+ * parameters
+ * @returns {boolean} true if the object contains all the parameters needed
+ * @todo check for types of the parameters all the parameters but the public exponent
+ * should be parseable bigint objects, the public exponent should be a parseable integer number
+ * @private
+ */
+RSAKey.prototype.hasPrivateKeyProperty = function (obj) {
+  obj = obj || {};
+  return (
+    obj.hasOwnProperty('n') &&
+    obj.hasOwnProperty('e') &&
+    obj.hasOwnProperty('d') &&
+    obj.hasOwnProperty('p') &&
+    obj.hasOwnProperty('q') &&
+    obj.hasOwnProperty('dmp1') &&
+    obj.hasOwnProperty('dmq1') &&
+    obj.hasOwnProperty('coeff')
+  );
+};
+
+/**
+ * Parse the properties of obj in the current rsa object. Obj should AT LEAST
+ * include the modulus and public exponent (n, e) parameters.
+ * @param {Object} obj - the object containing rsa parameters
+ * @private
+ */
+RSAKey.prototype.parsePropertiesFrom = function (obj) {
+  this.n = obj.n;
+  this.e = obj.e;
+
+  if (obj.hasOwnProperty('d')) {
+    this.d = obj.d;
+    this.p = obj.p;
+    this.q = obj.q;
+    this.dmp1 = obj.dmp1;
+    this.dmq1 = obj.dmq1;
+    this.coeff = obj.coeff;
+  }
+};
+
+/**
+ * Create a new JSEncryptRSAKey that extends Tom Wu's RSA key object.
+ * This object is just a decorator for parsing the key parameter
+ * @param {string|Object} key - The key in string format, or an object containing
+ * the parameters needed to build a RSAKey object.
+ * @constructor
+ */
+var JSEncryptRSAKey = function (key) {
+  // Call the super constructor.
+  RSAKey.call(this);
+  // If a key key was provided.
+  if (key) {
+    // If this is a string...
+    if (typeof key === 'string') {
+      this.parseKey(key);
+    }
+    else if (
+      this.hasPrivateKeyProperty(key) ||
+      this.hasPublicKeyProperty(key)
+    ) {
+      // Set the values for the key.
+      this.parsePropertiesFrom(key);
+    }
+  }
+};
+
+// Derive from RSAKey.
+JSEncryptRSAKey.prototype = new RSAKey();
+
+// Reset the contructor.
+JSEncryptRSAKey.prototype.constructor = JSEncryptRSAKey;
+
+
+/**
+ *
+ * @param {Object} [options = {}] - An object to customize JSEncrypt behaviour
+ * possible parameters are:
+ * - default_key_size        {number}  default: 1024 the key size in bit
+ * - default_public_exponent {string}  default: '010001' the hexadecimal representation of the public exponent
+ * - log                     {boolean} default: false whether log warn/error or not
+ * @constructor
+ */
+var JSEncrypt = function (options) {
+  options = options || {};
+  this.default_key_size = parseInt(options.default_key_size) || 1024;
+  this.default_public_exponent = options.default_public_exponent || '010001'; //65537 default openssl public exponent for rsa key type
+  this.log = options.log || false;
+  // The private and public key.
+  this.key = null;
+};
+
+/**
+ * Method to set the rsa key parameter (one method is enough to set both the public
+ * and the private key, since the private key contains the public key paramenters)
+ * Log a warning if logs are enabled
+ * @param {Object|string} key the pem encoded string or an object (with or without header/footer)
+ * @public
+ */
+JSEncrypt.prototype.setKey = function (key) {
+  if (this.log && this.key) {
+    UnionLogger.set('A key was already set, overriding existing.');
+  }
+  this.key = new JSEncryptRSAKey(key);
+};
+
+/**
+ * Proxy method for setKey, for api compatibility
+ * @see setKey
+ * @public
+ */
+JSEncrypt.prototype.setPrivateKey = function (privkey) {
+  // Create the key.
+  this.setKey(privkey);
+};
+
+/**
+ * Proxy method for setKey, for api compatibility
+ * @see setKey
+ * @public
+ */
+JSEncrypt.prototype.setPublicKey = function (pubkey) {
+  // Sets the public key.
+  this.setKey(pubkey);
+};
+
+/**
+ * Proxy method for RSAKey object's decrypt, decrypt the string using the private
+ * components of the rsa key object. Note that if the object was not set will be created
+ * on the fly (by the getKey method) using the parameters passed in the JSEncrypt constructor
+ * @param {string} string base64 encoded crypted string to decrypt
+ * @return {string} the decrypted string
+ * @public
+ */
+JSEncrypt.prototype.decrypt = function (string) {
+  // Return the decrypted string.
+  try {
+    // return this.getKey().decrypt(b64tohex(string));
+    return this.getKey().decrypt(string);
+  }
+  catch (ex) {
+    return false;
+  }
+};
+
+/**
+ * Proxy method for RSAKey object's encrypt, encrypt the string using the public
+ * components of the rsa key object. Note that if the object was not set will be created
+ * on the fly (by the getKey method) using the parameters passed in the JSEncrypt constructor
+ * @param {uint8array} string the string to encrypt
+ * @return {string} the encrypted string encoded in hex
+ * @public
+ */
+JSEncrypt.prototype.encrypt = function (uint8array) {
+  // Return the encrypted string.
+  try {
+    //return hex2b64(this.getKey().encrypt(string));
+    return this.getKey().encrypt(uint8array);
+  }
+  catch (ex) {
+    return false;
+  }
+};
+
+/**
+ * Getter for the current JSEncryptRSAKey object. If it doesn't exists a new object
+ * will be created and returned
+ * @param {callback} [cb] the callback to be called if we want the key to be generated
+ * in an async fashion
+ * @returns {JSEncryptRSAKey} the JSEncryptRSAKey object
+ * @public
+ */
+JSEncrypt.prototype.getKey = function (cb) {
+  // Only create new if it does not exist.
+  if (!this.key) {
+    // Get a new private key.
+    this.key = new JSEncryptRSAKey();
+    if (cb && {}.toString.call(cb) === '[object Function]') {
+      this.key.generateAsync(this.default_key_size, this.default_public_exponent, cb);
+      return;
+    }
+    // Generate the key.
+    this.key.generate(this.default_key_size, this.default_public_exponent);
+  }
+  return this.key;
+};
+
+/**
+ * Returns the pem encoded representation of the private key
+ * If the key doesn't exists a new key will be created
+ * @returns {string} pem encoded representation of the private key WITH header and footer
+ * @public
+ */
+JSEncrypt.prototype.getPrivateKey = function () {
+  // Return the private representation of this key.
+  return this.getKey().getPrivateKey();
+};
+
+/**
+ * Returns the pem encoded representation of the private key
+ * If the key doesn't exists a new key will be created
+ * @returns {string} pem encoded representation of the private key WITHOUT header and footer
+ * @public
+ */
+JSEncrypt.prototype.getPrivateKeyB64 = function () {
+  // Return the private representation of this key.
+  return this.getKey().getPrivateBaseKeyB64();
+};
+
+
+/**
+ * Returns the pem encoded representation of the public key
+ * If the key doesn't exists a new key will be created
+ * @returns {string} pem encoded representation of the public key WITH header and footer
+ * @public
+ */
+JSEncrypt.prototype.getPublicKey = function () {
+  // Return the private representation of this key.
+  return this.getKey().getPublicKey();
+};
+
+// PKCS#1 (type 2, random) pad input uint8array s to n bytes, and return a bigint
+// 
+// EB = 00 || BT || PS || 00 || M
+// BT : 类型标识，2 - 公钥加密，1 - 私钥加密
+// PS : 填充值，BT = 2 时为非零随机数，BT = 1 时为 0xFF
+// M : message 消息数据
+// 
+JSEncrypt.prototype.pkcs1pad2 = function(s, n, mode){
+  return this.getKey().pkcs1pad2(s, n, mode);
+};
+
+/**
+ * Returns the pem encoded representation of the public key
+ * If the key doesn't exists a new key will be created
+ * @returns {string} pem encoded representation of the public key WITHOUT header and footer
+ * @public
+ */
+JSEncrypt.prototype.getPublicKeyB64 = function () {
+  // Return the private representation of this key.
+  return this.getKey().getPublicBaseKeyB64();
+};
+
+
+  JSEncrypt.version = '2.3.1';
+  exports.JSEncrypt = JSEncrypt;
+}(this));;
+        (function () {
+    var K = KeyouCryptography;
+    var KA = KeyouCryptography.algorithm;
+    var Checker = KeyouCryptography.util.Checker;
+    var Hex = KeyouCryptography.util.Hex;
+    var UTF8 = KeyouCryptography.util.UTF8;
+    var Helper = KeyouCryptography.util.Helper;
+
+    var RSA = KA.RSA = (function () {
+
+        return {
+
+            DEFAULT_PUBLIC_EXPONENT: 65537,
+
+            /**
+             * 产生 RSA 公私钥对
+             * 
+             * @param  {Integer} bits     生成公钥的二进制位数，建议取 1024 以上的值
+             * @param  {String} exponent  16进制的公钥指数，一般为 3-'03' 或者 65537-'010001'
+             * 
+             * @return {Object}          密钥对，publicKey 下存储公钥，privateKey 下存储私钥
+             *
+             * @static
+             *
+             * @example
+             * 
+             */
+            generate: function (bits, exponent) {
+                var keypair = new JSEncrypt({
+                    default_key_size: bits,
+                    default_public_exponent: exponent
+                }).getKey();
+
+                return {
+                    publicKey: Hex.parse(keypair.getPublicBaseKey()),
+                    privateKey: Hex.parse(keypair.getPrivateBaseKey())
+                }
+            },
+
+            /**
+             * RSA 公钥加密数据:
+             * 
+             * @param  {Uint8Array} plaintext 二进制明文数据值
+             * @param  {Uint8Array} publicKey 二进制公钥值
+             * 
+             * @return {Uint8Array}           二进制密文值
+             *
+             * @static
+             *
+             * @example
+             *
+             *      var ciphertext = KeyouCryptography.algorithm.RSA.encryptWithPublicKey(plaintext, publicKey);
+             */
+            encrypt: function (plaintext, publicKey) {
+                var encrypt = new JSEncrypt();
+                UnionLogger.set("publicKey : \n" + Hex.stringify(publicKey));
+                encrypt.setPublicKey(Hex.stringify(publicKey));
+                var ciphertext = Hex.parse(encrypt.encrypt(plaintext));
+                UnionLogger.set("Ciphertext : \n" + Hex.stringify(ciphertext));
+                return ciphertext;
+            },
+
+            /**
+             * RSA 私钥解密数据
+             * 
+             * @param  {Uint8Array} ciphertext 二进制 RSA 公钥加密的密文
+             * @param  {Uint8Array} privateKey 二进制的 RSA 私钥
+             * 
+             * @return {Uint8Array}            二进制的明文值
+             *
+             * @static
+             *
+             * @example
+             *
+             *      var plaintext = KeyouCryptography.algorithm.RSA.decryptWithPrivateKey(ciphertext, privateKey);
+             */
+            decrypt: function (ciphertext, privateKey) {
+                var encrypt = new JSEncrypt();
+                encrypt.setPrivateKey(Hex.stringify(privateKey));
+                var plaintext = encrypt.decrypt(Hex.stringify(ciphertext));
+                return plaintext;             
+            },
+
+            /**
+             * RSA 签名
+             * @param  {Uint8Array} data       数据值，注意该数据值应该是摘要数据后的摘要值，并且摘要值前面必须携带对应的摘要算法标识。也就是必须是一条 DER 编码的摘要值。
+             * @param  {Uint8Array} privateKey [description]
+             * @return {Uint8Array}            签名值
+             */
+            _sign: function (data, privateKey) {
+                var sign = new JSEncrypt();
+                sign.setPrivateKey(Hex.stringify(privateKey));
+                var signatrue = sign.getKey().sign(data);
+                return Hex.parse(signatrue);
+            },
+
+            /**
+             * RSA 验签
+             * @param  {Uint8Array} sign      签名值
+             * @param  {Uint8Array} data 数据值，注意该数据值应该是摘要数据后的摘要值，并且摘要值前面必须携带对应的摘要算法标识。也就是必须是一条 DER 编码的摘要值。
+             * @param  {Uint8Array} publicKey 公钥值
+             * @return {Boolean}           true 成功，false 失败
+             */
+            _verify: function(sign, data, publicKey) {
+                var verify = new JSEncrypt();
+                verify.setPublicKey(Hex.stringify(publicKey));
+                return verify.getKey().verify(Hex.stringify(sign), data);
+            },
+
+
+            sign: function (data, privateKey, hashType) {
+                if (hashType.name === K.Hasher.NONE.name) {
+                    return this._sign(data, privateKey);
+                }
+                var hash = KA[hashType.name].digest(data);
+                var signdata = Hex.parse(hashType.DER_OID).concat(hash);
+                return this._sign(signdata, privateKey);
+            },
+
+            verify: function (sign, data, publicKey, hashType) {
+                if (hashType.name === K.Hasher.NONE.name) {
+                    return this._verify(sign, data, publicKey);
+                }                
+                var hash = KA[hashType.name].digest(data);
+                var signdata = Hex.parse(hashType.DER_OID).concat(hash);
+                return this._verify(sign, signdata, publicKey)
+            },
+
+            pkcs1pad: function (s, n, mode) {
+                var jsencrypt = new JSEncrypt();
+                return jsencrypt.getKey().pkcs1pad2(s, n, mode);
+            },
+
+            testKeypair: {
+                publicKey: "308189028181009F43B5203FB2A2E20E97D1A985AA3D86F66274922304E9ED6698BA94B7903AD7F3741EDE9078DF3EBA27FCD1A38F9B608499A7E5CD3EF6FC658BAA231028B40033F3A11AB0B286541CA385B758D4C87D052216B14547B28265AC3243549378ECAAA5CEEAA7CB38DA2F78C3D6634A3BEA1745923E452E3C4ABA0D967D67DCABD50203010001",
+
+                privateKey: "3082025D020100028181009F43B5203FB2A2E20E97D1A985AA3D86F66274922304E9ED6698BA94B7903AD7F3741EDE9078DF3EBA27FCD1A38F9B608499A7E5CD3EF6FC658BAA231028B40033F3A11AB0B286541CA385B758D4C87D052216B14547B28265AC3243549378ECAAA5CEEAA7CB38DA2F78C3D6634A3BEA1745923E452E3C4ABA0D967D67DCABD502030100010281806B37D1C01C21CEB610CCF44103D3500883E65443ED7F695C812D60AEADC55357FE75B6326F60702A7278692358D15CF0E553EC4C3098AAFDCFFEEE531C95CA5728B4CA81F25CF1B88E476F246882BD311DAD00463DEBAE2F0275F1C4538E9216DB70A19DC78DFE875E7EFE35EBFCFB459DFF9EA821A20178C5FE3EC53571BA21024100CE0D43DDE1383EA9827EF3A5F684573F58FAAE294693A48DC56B77489E0A3E86DE74BDE3D43A684C6F15AB21E5ED2B781CBD880246EA99F2A960079AA715AD13024100C5DF02E9ECAE7A3B268377372BC6EAA67838DFAB6C497FDA1216EDCB7962B6D0AB0D33AA13233B19ACDAB0CA86A165A7B96BF9D995643FA431F74A423650E87702410092D2FAF820E2FE2BB57416D3BCCC628B1E314A66D9069DABF3EFF6C884ECD1CF32B6C7149006AA89446291560F4BA7BCE7E5DA039D5AD0260CB103DA1C932287024100BD0E14019F6321644CAB0587D02AF15DF6B61876F832CD9674FC355DD8EFC94E5C7073B187317D314DE7714D400F0B4A92AE28FD8C7049223F9F4FF32D646687024003D59FD40D99C7A67E33836DB66A933432CBBC34D958BA7E233672EBA6174E7AAEC3AF2821A899A667CBBD48283C7BB59BBF77C8A8232CD9F0F17DBDC2629118"
+            }
+        };
+    }());
+}());;
+    
+    
+    
+        (function () {
+    var KA = KeyouCryptography.algorithm;
+    var Helper = KeyouCryptography.util.Helper;
+
+    var DES = KA.DES = (function () {
+
+        var BLOCK_SIZE = 8,
+            workingKey = new Array();
+
+        var bytebit = [
+            0200, 0100, 040, 020, 010, 04, 02, 01
+        ];
+
+        var bigbyte = [
+            0x800000, 0x400000, 0x200000, 0x100000,
+            0x080000, 0x040000, 0x020000, 0x010000,
+            0x008000, 0x004000, 0x002000, 0x001000,
+            0x000800, 0x000400, 0x000200, 0x000100,
+            0x000080, 0x000040, 0x000020, 0x000010,
+            0x000008, 0x000004, 0x000002, 0x000001            
+        ];
+
+        /*
+         * Use the key schedule specified in the Standard (ANSI X3.92-1981).
+         */
+
+        var pc1 = [
+            56, 48, 40, 32, 24, 16, 08, 00, 57, 49, 41, 33, 25, 17,
+            09, 01, 58, 50, 42, 34, 26, 18, 10, 02, 59, 51, 43, 35,
+            62, 54, 46, 38, 30, 22, 14, 06, 61, 53, 45, 37, 29, 21,
+            13, 05, 60, 52, 44, 36, 28, 20, 12, 04, 27, 19, 11, 03
+        ];
+
+
+        var totrot = [
+            01, 02, 04, 06, 08, 10, 12, 14,
+            15, 17, 19, 21, 23, 25, 27, 28
+        ];
+
+        var pc2 =[
+            13, 16, 10, 23, 00, 04, 02, 27, 14, 05, 20, 09,
+            22, 18, 11, 03, 25, 07, 15, 06, 26, 19, 12, 01,
+            40, 51, 30, 36, 46, 54, 29, 39, 50, 44, 32, 47,
+            43, 48, 38, 55, 33, 52, 45, 41, 49, 35, 28, 31
+        ];
+
+        var SP1 = [
+            0x01010400, 0x00000000, 0x00010000, 0x01010404,
+            0x01010004, 0x00010404, 0x00000004, 0x00010000,
+            0x00000400, 0x01010400, 0x01010404, 0x00000400,
+            0x01000404, 0x01010004, 0x01000000, 0x00000004,
+            0x00000404, 0x01000400, 0x01000400, 0x00010400,
+            0x00010400, 0x01010000, 0x01010000, 0x01000404,
+            0x00010004, 0x01000004, 0x01000004, 0x00010004,
+            0x00000000, 0x00000404, 0x00010404, 0x01000000,
+            0x00010000, 0x01010404, 0x00000004, 0x01010000,
+            0x01010400, 0x01000000, 0x01000000, 0x00000400,
+            0x01010004, 0x00010000, 0x00010400, 0x01000004,
+            0x00000400, 0x00000004, 0x01000404, 0x00010404,
+            0x01010404, 0x00010004, 0x01010000, 0x01000404,
+            0x01000004, 0x00000404, 0x00010404, 0x01010400,
+            0x00000404, 0x01000400, 0x01000400, 0x00000000,
+            0x00010004, 0x00010400, 0x00000000, 0x01010004
+        ];
+
+        var SP2 = [
+            0x80108020, 0x80008000, 0x00008000, 0x00108020,
+            0x00100000, 0x00000020, 0x80100020, 0x80008020,
+            0x80000020, 0x80108020, 0x80108000, 0x80000000,
+            0x80008000, 0x00100000, 0x00000020, 0x80100020,
+            0x00108000, 0x00100020, 0x80008020, 0x00000000,
+            0x80000000, 0x00008000, 0x00108020, 0x80100000,
+            0x00100020, 0x80000020, 0x00000000, 0x00108000,
+            0x00008020, 0x80108000, 0x80100000, 0x00008020,
+            0x00000000, 0x00108020, 0x80100020, 0x00100000,
+            0x80008020, 0x80100000, 0x80108000, 0x00008000,
+            0x80100000, 0x80008000, 0x00000020, 0x80108020,
+            0x00108020, 0x00000020, 0x00008000, 0x80000000,
+            0x00008020, 0x80108000, 0x00100000, 0x80000020,
+            0x00100020, 0x80008020, 0x80000020, 0x00100020,
+            0x00108000, 0x00000000, 0x80008000, 0x00008020,
+            0x80000000, 0x80100020, 0x80108020, 0x00108000
+        ];
+
+        var SP3 = [
+            0x00000208, 0x08020200, 0x00000000, 0x08020008,
+            0x08000200, 0x00000000, 0x00020208, 0x08000200,
+            0x00020008, 0x08000008, 0x08000008, 0x00020000,
+            0x08020208, 0x00020008, 0x08020000, 0x00000208,
+            0x08000000, 0x00000008, 0x08020200, 0x00000200,
+            0x00020200, 0x08020000, 0x08020008, 0x00020208,
+            0x08000208, 0x00020200, 0x00020000, 0x08000208,
+            0x00000008, 0x08020208, 0x00000200, 0x08000000,
+            0x08020200, 0x08000000, 0x00020008, 0x00000208,
+            0x00020000, 0x08020200, 0x08000200, 0x00000000,
+            0x00000200, 0x00020008, 0x08020208, 0x08000200,
+            0x08000008, 0x00000200, 0x00000000, 0x08020008,
+            0x08000208, 0x00020000, 0x08000000, 0x08020208,
+            0x00000008, 0x00020208, 0x00020200, 0x08000008,
+            0x08020000, 0x08000208, 0x00000208, 0x08020000,
+            0x00020208, 0x00000008, 0x08020008, 0x00020200
+        ];
+
+        var SP4 = [
+            0x00802001, 0x00002081, 0x00002081, 0x00000080,
+            0x00802080, 0x00800081, 0x00800001, 0x00002001,
+            0x00000000, 0x00802000, 0x00802000, 0x00802081,
+            0x00000081, 0x00000000, 0x00800080, 0x00800001,
+            0x00000001, 0x00002000, 0x00800000, 0x00802001,
+            0x00000080, 0x00800000, 0x00002001, 0x00002080,
+            0x00800081, 0x00000001, 0x00002080, 0x00800080,
+            0x00002000, 0x00802080, 0x00802081, 0x00000081,
+            0x00800080, 0x00800001, 0x00802000, 0x00802081,
+            0x00000081, 0x00000000, 0x00000000, 0x00802000,
+            0x00002080, 0x00800080, 0x00800081, 0x00000001,
+            0x00802001, 0x00002081, 0x00002081, 0x00000080,
+            0x00802081, 0x00000081, 0x00000001, 0x00002000,
+            0x00800001, 0x00002001, 0x00802080, 0x00800081,
+            0x00002001, 0x00002080, 0x00800000, 0x00802001,
+            0x00000080, 0x00800000, 0x00002000, 0x00802080
+        ];
+
+        var SP5 = [
+            0x00000100, 0x02080100, 0x02080000, 0x42000100,
+            0x00080000, 0x00000100, 0x40000000, 0x02080000,
+            0x40080100, 0x00080000, 0x02000100, 0x40080100,
+            0x42000100, 0x42080000, 0x00080100, 0x40000000,
+            0x02000000, 0x40080000, 0x40080000, 0x00000000,
+            0x40000100, 0x42080100, 0x42080100, 0x02000100,
+            0x42080000, 0x40000100, 0x00000000, 0x42000000,
+            0x02080100, 0x02000000, 0x42000000, 0x00080100,
+            0x00080000, 0x42000100, 0x00000100, 0x02000000,
+            0x40000000, 0x02080000, 0x42000100, 0x40080100,
+            0x02000100, 0x40000000, 0x42080000, 0x02080100,
+            0x40080100, 0x00000100, 0x02000000, 0x42080000,
+            0x42080100, 0x00080100, 0x42000000, 0x42080100,
+            0x02080000, 0x00000000, 0x40080000, 0x42000000,
+            0x00080100, 0x02000100, 0x40000100, 0x00080000,
+            0x00000000, 0x40080000, 0x02080100, 0x40000100
+        ];
+
+        var SP6 = [
+            0x20000010, 0x20400000, 0x00004000, 0x20404010,
+            0x20400000, 0x00000010, 0x20404010, 0x00400000,
+            0x20004000, 0x00404010, 0x00400000, 0x20000010,
+            0x00400010, 0x20004000, 0x20000000, 0x00004010,
+            0x00000000, 0x00400010, 0x20004010, 0x00004000,
+            0x00404000, 0x20004010, 0x00000010, 0x20400010,
+            0x20400010, 0x00000000, 0x00404010, 0x20404000,
+            0x00004010, 0x00404000, 0x20404000, 0x20000000,
+            0x20004000, 0x00000010, 0x20400010, 0x00404000,
+            0x20404010, 0x00400000, 0x00004010, 0x20000010,
+            0x00400000, 0x20004000, 0x20000000, 0x00004010,
+            0x20000010, 0x20404010, 0x00404000, 0x20400000,
+            0x00404010, 0x20404000, 0x00000000, 0x20400010,
+            0x00000010, 0x00004000, 0x20400000, 0x00404010,
+            0x00004000, 0x00400010, 0x20004010, 0x00000000,
+            0x20404000, 0x20000000, 0x00400010, 0x20004010
+        ];
+
+        var SP7 = [
+            0x00200000, 0x04200002, 0x04000802, 0x00000000,
+            0x00000800, 0x04000802, 0x00200802, 0x04200800,
+            0x04200802, 0x00200000, 0x00000000, 0x04000002,
+            0x00000002, 0x04000000, 0x04200002, 0x00000802,
+            0x04000800, 0x00200802, 0x00200002, 0x04000800,
+            0x04000002, 0x04200000, 0x04200800, 0x00200002,
+            0x04200000, 0x00000800, 0x00000802, 0x04200802,
+            0x00200800, 0x00000002, 0x04000000, 0x00200800,
+            0x04000000, 0x00200800, 0x00200000, 0x04000802,
+            0x04000802, 0x04200002, 0x04200002, 0x00000002,
+            0x00200002, 0x04000000, 0x04000800, 0x00200000,
+            0x04200800, 0x00000802, 0x00200802, 0x04200800,
+            0x00000802, 0x04000002, 0x04200802, 0x04200000,
+            0x00200800, 0x00000000, 0x00000002, 0x04200802,
+            0x00000000, 0x00200802, 0x04200000, 0x00000800,
+            0x04000002, 0x04000800, 0x00000800, 0x00200002
+        ];
+
+        var SP8 = [
+            0x10001040, 0x00001000, 0x00040000, 0x10041040,
+            0x10000000, 0x10001040, 0x00000040, 0x10000000,
+            0x00040040, 0x10040000, 0x10041040, 0x00041000,
+            0x10041000, 0x00041040, 0x00001000, 0x00000040,
+            0x10040000, 0x10000040, 0x10001000, 0x00001040,
+            0x00041000, 0x00040040, 0x10040040, 0x10041000,
+            0x00001040, 0x00000000, 0x00000000, 0x10040040,
+            0x10000040, 0x10001000, 0x00041040, 0x00040000,
+            0x00041040, 0x00040000, 0x10041000, 0x00001000,
+            0x00000040, 0x10040040, 0x00001000, 0x00041040,
+            0x10001000, 0x00000040, 0x10000040, 0x10040000,
+            0x10040040, 0x10000000, 0x00040000, 0x10001040,
+            0x00000000, 0x10041040, 0x00040040, 0x10000040,
+            0x10040000, 0x10001000, 0x10001040, 0x00000000,
+            0x10041040, 0x00041000, 0x00041000, 0x00001040,
+            0x00001040, 0x00040040, 0x10000000, 0x10041000
+        ];
+
+        // encryption: boolean
+        // key: Uint8Array
+        var generateWorkingKey = function (encryption, key) {
+            var newKey = new Array(32);
+            var pc1m = new Array(56);
+            var pcr = new Array(56);
+
+            for (var j = 0; j < 56; j++) {
+                var l = pc1[j];
+                pc1m[j] = ((key[l >>> 3] & bytebit[l & 07]) != 0);
+            }
+
+            for (var i = 0; i < 16; i++) {
+                var l, m, n;
+                if (encryption) {
+                    m = i << 1;
+                } else {
+                    m = (15 - i) << 1;
+                }
+
+                n = m + 1;
+                newKey[m] = newKey[n] = 0;
+                for (var j = 0; j < 28; j++) {
+                    l = j + totrot[i];
+                    if (l < 28) {
+                        pcr[j] = pc1m[l];
+                    } else {
+                        pcr[j] = pc1m[l - 28];
+                    }
+                }
+
+                for (var j = 28; j < 56; j++) {
+                    l = j + totrot[i];
+                    if (l < 56) {
+                        pcr[j] = pc1m[l];
+                    } else {
+                        pcr[j] = pc1m[l - 28];
+                    }
+                }
+
+                for (var j = 0; j < 24; j++) {
+                    if (pcr[pc2[j]]) {
+                        newKey[m] |= bigbyte[j];
+                    }
+
+                    if (pcr[pc2[j + 24]]) {
+                        newKey[n] |= bigbyte[j];
+                    }
+                }
+            }
+
+            for (var i = 0; i != 32; i += 2) {
+                var i1, i2;
+
+                i1 = newKey[i];
+                i2 = newKey[i + 1];
+
+                newKey[i] = (((i1 & 0x00fc0000) << 6) | ((i1 & 0x00000fc0) << 10) | ((i2 & 0x00fc0000) >>> 10) | ((i2 & 0x00000fc0) >>> 6)) >>> 0;
+
+                newKey[i + 1] = (((i1 & 0x0003f000) << 12) | ((i1 & 0x0000003f) << 16) | ((i2 & 0x0003f000) >>> 4) | (i2 & 0x0000003f)) >>> 0;
+            }
+
+            return newKey;
+        };
+
+
+        /**
+         * the DES engine.
+         */
+        var desFunc = function (wKey, input, inOff, output, outOff) {
+            var work, right, left;
+
+            left = ((input[inOff + 0] & 0xff) << 24 |
+                    (input[inOff + 1] & 0xff) << 16 |
+                    (input[inOff + 2] & 0xff) << 8  |
+                    (input[inOff + 3] & 0xff)) >>> 0;
+
+            right = ((input[inOff + 4] & 0xff) << 24 |
+                     (input[inOff + 5] & 0xff) << 16 |
+                     (input[inOff + 6] & 0xff) << 8  |
+                     (input[inOff + 7] & 0xff)) >>> 0;
+
+            work = ((left >>> 4) ^ right) & 0x0f0f0f0f;
+            right ^= work;
+            left ^= (work << 4);
+            work = ((left >>> 16) ^ right) & 0x0000ffff;
+            right ^= work;
+            left ^= (work << 16);
+            work = ((right >>> 2) ^ left) & 0x33333333;
+            left ^= work;
+            right ^= (work << 2);
+            work = ((right >>> 8) ^ left) & 0x00ff00ff;
+            left ^= work;
+            right ^= (work << 8);
+            right = (((right << 1) | ((right >>> 31) & 1)) & 0xffffffff) >>> 0;
+            work = ((left ^ right) & 0xaaaaaaaa) >>> 0;
+            left ^= work;
+            right ^= work;
+            left = (((left << 1) | ((left >>> 31) & 1)) & 0xffffffff) >>> 0;
+
+            for (var round = 0; round < 8; round++) {
+                var fval;
+
+                work  = (right << 28) | (right >>> 4);
+                work ^= wKey[round * 4 + 0];
+                fval  = SP7[ work      & 0x3f];
+                fval |= SP5[(work >>>  8) & 0x3f];
+                fval |= SP3[(work >>> 16) & 0x3f];
+                fval |= SP1[(work >>> 24) & 0x3f];
+                work  = right ^ wKey[round * 4 + 1];
+                fval |= SP8[ work      & 0x3f];
+                fval |= SP6[(work >>>  8) & 0x3f];
+                fval |= SP4[(work >>> 16) & 0x3f];
+                fval |= SP2[(work >>> 24) & 0x3f];
+                left ^= fval;
+                work  = (left << 28) | (left >>> 4);
+                work ^= wKey[round * 4 + 2];
+                fval  = SP7[ work      & 0x3f];
+                fval |= SP5[(work >>>  8) & 0x3f];
+                fval |= SP3[(work >>> 16) & 0x3f];
+                fval |= SP1[(work >>> 24) & 0x3f];
+                work  = left ^ wKey[round * 4 + 3];
+                fval |= SP8[ work      & 0x3f];
+                fval |= SP6[(work >>>  8) & 0x3f];
+                fval |= SP4[(work >>> 16) & 0x3f];
+                fval |= SP2[(work >>> 24) & 0x3f];
+                right ^= fval;
+            }
+
+            right = (right << 31) | (right >>> 1);
+            work = ((left ^ right) & 0xaaaaaaaa) >>> 0;
+            left ^= work;
+            right ^= work;
+            left = (left << 31) | (left >>> 1);
+            work = ((left >>> 8) ^ right) & 0x00ff00ff;
+            right ^= work;
+            left ^= (work << 8);
+            work = ((left >>> 2) ^ right) & 0x33333333;
+            right ^= work;
+            left ^= (work << 2);
+            work = ((right >>> 16) ^ left) & 0x0000ffff;
+            left ^= work;
+            right ^= (work << 16);
+            work = ((right >>> 4) ^ left) & 0x0f0f0f0f;
+            left ^= work;
+            right ^= (work << 4);
+
+            output[outOff + 0] = ((right >>> 24) & 0xff) >>> 0;
+            output[outOff + 1] = ((right >>> 16) & 0xff) >>> 0;
+            output[outOff + 2] = ((right >>>  8) & 0xff) >>> 0;
+            output[outOff + 3] = (right         & 0xff) >>> 0;
+            output[outOff + 4] = ((left >>> 24) & 0xff) >>> 0;
+            output[outOff + 5] = ((left >>> 16) & 0xff) >>> 0;
+            output[outOff + 6] = ((left >>>  8) & 0xff) >>> 0;
+            output[outOff + 7] = (left         & 0xff) >>> 0;
+        };
+
+        var processBlock = function (encryption, data, key) {
+            var output = new Array(BLOCK_SIZE);
+            if (key.length === BLOCK_SIZE) {
+                var workingKey = generateWorkingKey(encryption, key);
+                desFunc(workingKey, data, 0, output, 0);                
+            } else {
+                var key1 = generateWorkingKey(encryption, key.slice(0, BLOCK_SIZE));
+                var key2 = generateWorkingKey(!encryption, key.slice(BLOCK_SIZE, BLOCK_SIZE * 2));
+                var key3;
+                if (key.length === BLOCK_SIZE * 3) {
+                    key3 = generateWorkingKey(encryption, key.slice(BLOCK_SIZE * 2, BLOCK_SIZE * 3));
+                } else {
+                    key3 = key1;
+                }            
+                
+                var temp = new Array(BLOCK_SIZE);
+                if (encryption) {
+                    desFunc(key1, data, 0, temp, 0);
+                    desFunc(key2, temp, 0, temp, 0);
+                    desFunc(key3, temp, 0, output, 0);
+                } else {
+                    desFunc(key3, data, 0, temp, 0);
+                    desFunc(key2, temp, 0, temp, 0);
+                    desFunc(key1, temp, 0, output, 0);
+                }
+            }
+            return output;
+        };
+
+        var Copy = function (src, srcOffset, des, desOffset, length) {
+            for (var i = 0; i < length; i++) {
+                des[i + desOffset] = src[i + srcOffset];
+            }
+            return src;
+        } 
+
+        var XOR = function (data, iv) {
+            var xor = new Array(BLOCK_SIZE);
+            for (var i = 0; i < BLOCK_SIZE; i++) {
+                xor[i] = data[i] ^ iv[i];
+            }
+            return xor;
+        }              
+
+        return { // FIXME: 重复计算工作密钥
+            
+            BLOCK_SIZE: 8,
+
+            encryptWithECB: function (plaintext, key) {
+                var ciphertext = new Array();
+                for (var i = 0, len = plaintext.length; i < len; i += 8) {
+                    ciphertext = ciphertext.concat(processBlock(true, plaintext.slice(i, i + 8), key))
+                }
+                return ciphertext;
+            },
+
+            decryptWithECB: function (ciphertext, key) {
+                var plaintext = new Array();
+                for (var i = 0, len = ciphertext.length; i < len; i += 8) {
+                    plaintext = plaintext.concat(processBlock(false, ciphertext.slice(i, i + 8), key))
+                }
+                return plaintext;
+            },
+
+            encryptWithCBC: function (plaintext, key, iv) { 
+                var output = new Array(plaintext.length);
+                for (var i = 0; i < plaintext.length; i += BLOCK_SIZE) {
+                    var d = plaintext.slice(i, i + BLOCK_SIZE);
+                    var xor = XOR(d, iv);
+                    var out = new Array(BLOCK_SIZE);
+                    out = processBlock(true, xor, key);
+                    Copy(out, 0, output, i, BLOCK_SIZE);
+                    iv = out;
+                }
+                return output;                
+            },
+
+            decryptWithCBC: function (ciphertext, key, iv) {
+                var output = new Array(ciphertext.length);
+                for (var i = 0; i < ciphertext.length; i += BLOCK_SIZE) {
+                    var d = ciphertext.slice(i, i + BLOCK_SIZE);
+                    var out = new Array(BLOCK_SIZE);
+                    out = processBlock(false, d, key);
+                    var xor = XOR(out, iv);
+                    iv = ciphertext.slice(i, i + BLOCK_SIZE);
+                    Copy(xor, 0, output, i, BLOCK_SIZE);
+                }
+                return output;
+            }
+        }
+    }())
+}());   
     
 
     
+        (function () {
+    var KA = KeyouCryptography.algorithm;
+    
+    var MD5 = KA.MD5 = (function () {
+
+        var DIGEST_LENGTH = 16,
+            H1,
+            H2, 
+            H3, 
+            H4,
+            X = new Array(16),
+            xoff;
+
+        // 左移位常数
+        var S11 =  7, // 第一轮
+            S12 = 12,
+            S13 = 17,
+            S14 = 22,
+            S21 =  5, // 第二轮
+            S22 =  9,
+            S23 = 14,
+            S24 = 20,
+            S31 =  4, // 第三轮
+            S32 = 11,
+            S33 = 16,
+            S34 = 23,
+            S41 =  6, // 第四轮
+            S42 = 10,
+            S43 = 15,
+            S44 = 21;
+
+        var byteCounts, 
+            xbuffer = new Array(4), 
+            xoffset;
+
+        // data: Uint8Array
+        // offset: Integer
+        var processWord = function (data, offset) {
+            X[xoff++] = (data[offset] & 0xFF | (data[offset + 1] & 0xFF) << 8 | (data[offset + 2] & 0xFF) << 16 | (data[offset + 3] & 0xFF) << 24) >>> 0;
+            if (xoff === DIGEST_LENGTH) {
+                processBlock();
+            }
+        }
+
+        // bitLength: Long
+        var processLength = function (bitLength) {
+            if (xoff > 14) {
+                processBlock();
+            }
+            X[14] = (bitLength & 0x00000000FFFFFFFF) >>> 0;
+            X[15] = (bitLength & 0xFFFFFFFF00000000) >>> 32;
+        }
+        
+        // word: Integer
+        // out: Uint8Array
+        // offset: Integer 
+        var unpackWord = function (word, out, offset) {
+            out[offset + 0] = (word >>>  0) & 0xFF;
+            out[offset + 1] = (word >>>  8) & 0xFF;
+            out[offset + 2] = (word >>> 16) & 0xFF;
+            out[offset + 3] = (word >>> 24) & 0xFF;
+        }
+
+        var finish = function () {
+            var update = function (data) {
+                xbuffer[xoffset++] = data;
+                if (xoffset === xbuffer.length) {
+                    processWord(xbuffer, 0);
+                    xoffset = 0;
+                }
+                byteCounts++;
+            }
+            var bitLength = (byteCounts * 8);
+            
+            update(0x80);
+            while (xoffset != 0) {
+                update(0x00);
+            }
+
+            processLength(bitLength);
+            processBlock();
+        }
+
+        // out: Uint8Array
+        // offset: Integer
+        var doFinal = function (out, offset) {
+            finish();
+            unpackWord(H1, out, offset +  0);
+            unpackWord(H2, out, offset +  4);
+            unpackWord(H3, out, offset +  8);
+            unpackWord(H4, out, offset + 12);
+            reset();
+            return DIGEST_LENGTH;
+        }
+
+        // x: Integer
+        // n: Integer
+        var rotateLeft = function (x, n) {
+            x = (x & 0xFFFFFFFF) >>> 0
+            return ((((x << n) & 0xFFFFFFFF) >>> 0) | (x >>> (32 - n)) & 0xFFFFFFFF) >>> 0;
+        }
+
+        // u: Integer
+        // v: Integer
+        // w: Integer
+        var F = function (u, v, w) {
+            u = (u & 0xFFFFFFFF) >>> 0;
+            v = (v & 0xFFFFFFFF) >>> 0;
+            w = (w & 0xFFFFFFFF) >>> 0;
+            return (((u & v) | (~u & w)) & 0xFFFFFFFF) >>> 0;
+        }
+
+        // u: Integer
+        // v: Integer
+        // w: Integer
+        var G = function (u, v, w) {
+            u = (u & 0xFFFFFFFF) >>> 0;
+            v = (v & 0xFFFFFFFF) >>> 0;
+            w = (w & 0xFFFFFFFF) >>> 0;            
+            return (((u & w) | (v & ~w)) & 0xFFFFFFFF) >>> 0;
+        }        
+
+
+        // u: Integer
+        // v: Integer
+        // w: Integer
+        var H = function (u, v, w) {
+            u = (u & 0xFFFFFFFF) >>> 0;
+            v = (v & 0xFFFFFFFF) >>> 0;
+            w = (w & 0xFFFFFFFF) >>> 0;   
+            return ((u ^ v ^ w) & 0xFFFFFFFF) >>> 0;
+        }        
+
+
+        // u: Integer
+        // v: Integer
+        // w: Integer
+        var K = function (u, v, w) {
+            u = (u & 0xFFFFFFFF) >>> 0;
+            v = (v & 0xFFFFFFFF) >>> 0;
+            w = (w & 0xFFFFFFFF) >>> 0;   
+            return ((v ^ (u | ~w)) & 0xFFFFFFFF) >>> 0;
+        }        
+
+        var processBlock = function () {
+            var a = H1;
+            var b = H2;
+            var c = H3;
+            var d = H4;
+
+            //
+            // Round 1 - F cycle, 16 times.
+            //
+            a = rotateLeft(a + F(b, c, d) + X[ 0] + 0x0d76aa478, S11) + b;
+            d = rotateLeft(d + F(a, b, c) + X[ 1] + 0x0e8c7b756, S12) + a;
+            c = rotateLeft(c + F(d, a, b) + X[ 2] + 0x0242070db, S13) + d;
+            b = rotateLeft(b + F(c, d, a) + X[ 3] + 0x0c1bdceee, S14) + c;
+            a = rotateLeft(a + F(b, c, d) + X[ 4] + 0x0f57c0faf, S11) + b;
+            d = rotateLeft(d + F(a, b, c) + X[ 5] + 0x04787c62a, S12) + a;
+            c = rotateLeft(c + F(d, a, b) + X[ 6] + 0x0a8304613, S13) + d;
+            b = rotateLeft(b + F(c, d, a) + X[ 7] + 0x0fd469501, S14) + c;
+            a = rotateLeft(a + F(b, c, d) + X[ 8] + 0x0698098d8, S11) + b;
+            d = rotateLeft(d + F(a, b, c) + X[ 9] + 0x08b44f7af, S12) + a;
+            c = rotateLeft(c + F(d, a, b) + X[10] + 0x0ffff5bb1, S13) + d;
+            b = rotateLeft(b + F(c, d, a) + X[11] + 0x0895cd7be, S14) + c;
+            a = rotateLeft(a + F(b, c, d) + X[12] + 0x06b901122, S11) + b;
+            d = rotateLeft(d + F(a, b, c) + X[13] + 0x0fd987193, S12) + a;
+            c = rotateLeft(c + F(d, a, b) + X[14] + 0x0a679438e, S13) + d;
+            b = rotateLeft(b + F(c, d, a) + X[15] + 0x049b40821, S14) + c;
+
+            //
+            // Round 2 - G cycle, 16 times.
+            //
+            a = rotateLeft(a + G(b, c, d) + X[ 1] + 0x0f61e2562, S21) + b;
+            d = rotateLeft(d + G(a, b, c) + X[ 6] + 0x0c040b340, S22) + a;
+            c = rotateLeft(c + G(d, a, b) + X[11] + 0x0265e5a51, S23) + d;
+            b = rotateLeft(b + G(c, d, a) + X[ 0] + 0x0e9b6c7aa, S24) + c;
+            a = rotateLeft(a + G(b, c, d) + X[ 5] + 0x0d62f105d, S21) + b;
+            d = rotateLeft(d + G(a, b, c) + X[10] + 0x002441453, S22) + a;
+            c = rotateLeft(c + G(d, a, b) + X[15] + 0x0d8a1e681, S23) + d;
+            b = rotateLeft(b + G(c, d, a) + X[ 4] + 0x0e7d3fbc8, S24) + c;
+            a = rotateLeft(a + G(b, c, d) + X[ 9] + 0x021e1cde6, S21) + b;
+            d = rotateLeft(d + G(a, b, c) + X[14] + 0x0c33707d6, S22) + a;
+            c = rotateLeft(c + G(d, a, b) + X[ 3] + 0x0f4d50d87, S23) + d;
+            b = rotateLeft(b + G(c, d, a) + X[ 8] + 0x0455a14ed, S24) + c;
+            a = rotateLeft(a + G(b, c, d) + X[13] + 0x0a9e3e905, S21) + b;
+            d = rotateLeft(d + G(a, b, c) + X[ 2] + 0x0fcefa3f8, S22) + a;
+            c = rotateLeft(c + G(d, a, b) + X[ 7] + 0x0676f02d9, S23) + d;
+            b = rotateLeft(b + G(c, d, a) + X[12] + 0x08d2a4c8a, S24) + c;
+
+            //
+            // Round 3 - H cycle, 16 times.
+            //
+            a = rotateLeft(a + H(b, c, d) + X[ 5] + 0x0fffa3942, S31) + b;
+            d = rotateLeft(d + H(a, b, c) + X[ 8] + 0x08771f681, S32) + a;
+            c = rotateLeft(c + H(d, a, b) + X[11] + 0x06d9d6122, S33) + d;
+            b = rotateLeft(b + H(c, d, a) + X[14] + 0x0fde5380c, S34) + c;
+            a = rotateLeft(a + H(b, c, d) + X[ 1] + 0x0a4beea44, S31) + b;
+            d = rotateLeft(d + H(a, b, c) + X[ 4] + 0x04bdecfa9, S32) + a;
+            c = rotateLeft(c + H(d, a, b) + X[ 7] + 0x0f6bb4b60, S33) + d;
+            b = rotateLeft(b + H(c, d, a) + X[10] + 0x0bebfbc70, S34) + c;
+            a = rotateLeft(a + H(b, c, d) + X[13] + 0x0289b7ec6, S31) + b;
+            d = rotateLeft(d + H(a, b, c) + X[ 0] + 0x0eaa127fa, S32) + a;
+            c = rotateLeft(c + H(d, a, b) + X[ 3] + 0x0d4ef3085, S33) + d;
+            b = rotateLeft(b + H(c, d, a) + X[ 6] + 0x004881d05, S34) + c;
+            a = rotateLeft(a + H(b, c, d) + X[ 9] + 0x0d9d4d039, S31) + b;
+            d = rotateLeft(d + H(a, b, c) + X[12] + 0x0e6db99e5, S32) + a;
+            c = rotateLeft(c + H(d, a, b) + X[15] + 0x01fa27cf8, S33) + d;
+            b = rotateLeft(b + H(c, d, a) + X[ 2] + 0x0c4ac5665, S34) + c;
+
+            //
+            // Round 4 - K cycle, 16 times.
+            //
+            a = rotateLeft(a + K(b, c, d) + X[ 0] + 0x0f4292244, S41) + b;
+            d = rotateLeft(d + K(a, b, c) + X[ 7] + 0x0432aff97, S42) + a;
+            c = rotateLeft(c + K(d, a, b) + X[14] + 0x0ab9423a7, S43) + d;
+            b = rotateLeft(b + K(c, d, a) + X[ 5] + 0x0fc93a039, S44) + c;
+            a = rotateLeft(a + K(b, c, d) + X[12] + 0x0655b59c3, S41) + b;
+            d = rotateLeft(d + K(a, b, c) + X[ 3] + 0x08f0ccc92, S42) + a;
+            c = rotateLeft(c + K(d, a, b) + X[10] + 0x0ffeff47d, S43) + d;
+            b = rotateLeft(b + K(c, d, a) + X[ 1] + 0x085845dd1, S44) + c;
+            a = rotateLeft(a + K(b, c, d) + X[ 8] + 0x06fa87e4f, S41) + b;
+            d = rotateLeft(d + K(a, b, c) + X[15] + 0x0fe2ce6e0, S42) + a;
+            c = rotateLeft(c + K(d, a, b) + X[ 6] + 0x0a3014314, S43) + d;
+            b = rotateLeft(b + K(c, d, a) + X[13] + 0x04e0811a1, S44) + c;
+            a = rotateLeft(a + K(b, c, d) + X[ 4] + 0x0f7537e82, S41) + b;
+            d = rotateLeft(d + K(a, b, c) + X[11] + 0x0bd3af235, S42) + a;
+            c = rotateLeft(c + K(d, a, b) + X[ 2] + 0x02ad7d2bb, S43) + d;
+            b = rotateLeft(b + K(c, d, a) + X[ 9] + 0x0eb86d391, S44) + c;
+
+            H1 = ((H1 + a) & 0xFFFFFFFF) >>> 0;
+            H2 = ((H2 + b) & 0xFFFFFFFF) >>> 0;
+            H3 = ((H3 + c) & 0xFFFFFFFF) >>> 0;
+            H4 = ((H4 + d) & 0xFFFFFFFF) >>> 0;
+
+            //
+            // reset the offset and clean out the word buffer.
+            //
+            xoff = 0;
+            for (var i = 0; i < X.length; i++)
+            {
+                X[i] = 0;
+            }            
+        }
+
+        var reset = function () {
+            H1 = 0x067452301;
+            H2 = 0x0efcdab89;
+            H3 = 0x098badcfe;
+            H4 = 0x010325476;
+            xoff = 0;
+            for (var i = 0, len = X.length; i < len; i++) {
+                X[i] = 0;
+            } 
+
+            byteCounts = 0;
+            for (var i = 0, len = xbuffer.length; i < len; i++) {
+                xbuffer[i] = 0;
+            }
+            xoffset = 0;   
+        }
+
+        var update = function (data, length) {
+            length = length < 0 ? 0 : length;
+            var i = 0;
+            if (xoffset != 0) {
+                while (i < length) {
+                    xbuffer[xoffset++] = data[i++];
+                    if (xoffset == 4) {
+                        processWord(xbuffer, 0);
+                        xoffset = 0;
+                        break;
+                    }
+                }
+            }
+
+            var limit = ((length - i) & ~3) + i;
+            for (; i < limit; i += 4) {
+                processWord(data, i);
+            }
+
+            while (i < length) {
+                xbuffer[xoffset++] = data[i++];
+            }
+
+            byteCounts += length;
+        }
+
+        var final = function () {
+            var hash = new Array(DIGEST_LENGTH);
+            doFinal(hash, 0);
+            return hash;
+        }
+
+        return {
+
+            digest: function (data) {
+                reset();
+                update(data, data.length);
+                return final();
+            },
+
+            hmac: function (key, data) {
+
+            }
+        }
+    }())
+
+}());;
+    
+    
+        (function () {
+	var KA = KeyouCryptography.algorithm;
+
+    /**
+     *SH1算法
+    **/
+    var SHA1 = KA.SHA1 = (function () {
+
+    	var DIGEST_LENGTH = 20;
+
+    	var H1, H2, H3, H4, H5;
+
+    	var X = new Array(80); 
+
+    	var xOff;
+
+    	var BYTE_LENGTH = 64;
+
+    	var xBuf = new Array(4);
+
+    	var xBufOff;
+
+    	var byteCount;
+
+    	var Y1 = 0x5a827999;
+
+    	var Y2 = 0x6ed9eba1;
+
+    	var Y3 = 0x8f1bbcdc;
+
+    	var Y4 = 0xca62c1d6;
+
+    	var f = function (u, v, w) {
+    		return ((u & v) | ((~u) & w));
+    	}
+
+    	var h = function (u, v, w) {
+    		return (u ^ v ^ w);
+    	}
+    	var g = function (u, v, w) {
+    		return ((u & v) | (u & w) | (v & w));
+    	}
+
+    	var bigEndianToInt = function (bs, off) {
+    		var n = (bs[  off] & 0xff) << 24;
+    		n |= (bs[++off] & 0xff) << 16;
+    		n |= (bs[++off] & 0xff) << 8;
+    		n |= (bs[++off] & 0xff);
+    		return n;
+    	}
+
+    	var intToBigEndian = function (n, bs, off) { 
+    		bs[  off] = (n >>> 24) & 0xff;
+	        bs[++off] = (n >>> 16) & 0xff;
+	        bs[++off] = (n >>>  8) & 0xff;
+	        bs[++off] = (n       ) & 0xff;
+    	}
+
+    	var reset = function () {
+    		byteCount = 0;
+    		xBufOff = 0;
+    		for (var i = 0, len = xBuf.length; i < len; i++) {
+                xBuf[i] = 0;
+            }
+            H1 = 0x67452301;
+	        H2 = 0xefcdab89;
+	        H3 = 0x98badcfe;
+	        H4 = 0x10325476;
+	        H5 = 0xc3d2e1f0;
+            xOff = 0;
+	        for (var i = 0; i != X.length; i++)
+	        {
+	            X[i] = 0;
+	        }
+    	}
+
+    	var processBlock = function () {
+    		for (var i = 16; i < 80; i++)
+	        {
+	            var t = X[i - 3] ^ X[i - 8] ^ X[i - 14] ^ X[i - 16];
+	            X[i] = t << 1 | t >>> 31;
+	        }
+	        var     A = H1;
+	        var     B = H2;
+	        var     C = H3;
+	        var     D = H4;
+	        var     E = H5;
+
+	        //
+	        // round 1
+	        //
+	        var idx = 0;
+	        for (var j = 0; j < 4; j++)
+	        {
+	            // E = rotateLeft(A, 5) + f(B, C, D) + E + X[idx++] + Y1
+	            // B = rotateLeft(B, 30)
+	            E += (A << 5 | A >>> 27) + f(B, C, D) + X[idx++] + Y1;
+	            B = B << 30 | B >>> 2;
+	        
+	            D += (E << 5 | E >>> 27) + f(A, B, C) + X[idx++] + Y1;
+	            A = A << 30 | A >>> 2;
+	       
+	            C += (D << 5 | D >>> 27) + f(E, A, B) + X[idx++] + Y1;
+	            E = E << 30 | E >>> 2;
+	       
+	            B += (C << 5 | C >>> 27) + f(D, E, A) + X[idx++] + Y1;
+	            D = D << 30 | D >>> 2;
+
+	            A += (B << 5 | B >>> 27) + f(C, D, E) + X[idx++] + Y1;
+	            C = C << 30 | C >>> 2;
+	        }
+	        //
+	        // round 2
+	        //
+	        for (var j = 0; j < 4; j++)
+	        {
+	            // E = rotateLeft(A, 5) + h(B, C, D) + E + X[idx++] + Y2
+	            // B = rotateLeft(B, 30)
+	            E += (A << 5 | A >>> 27) + h(B, C, D) + X[idx++] + Y2;
+	            B = B << 30 | B >>> 2;   
+	            
+	            D += (E << 5 | E >>> 27) + h(A, B, C) + X[idx++] + Y2;
+	            A = A << 30 | A >>> 2;
+	            
+	            C += (D << 5 | D >>> 27) + h(E, A, B) + X[idx++] + Y2;
+	            E = E << 30 | E >>> 2;
+	            
+	            B += (C << 5 | C >>> 27) + h(D, E, A) + X[idx++] + Y2;
+	            D = D << 30 | D >>> 2;
+
+	            A += (B << 5 | B >>> 27) + h(C, D, E) + X[idx++] + Y2;
+	            C = C << 30 | C >>> 2;
+	        }
+	        
+	        //
+	        // round 3
+	        //
+	        for (var j = 0; j < 4; j++)
+	        {
+	            // E = rotateLeft(A, 5) + g(B, C, D) + E + X[idx++] + Y3
+	            // B = rotateLeft(B, 30)
+	            E += (A << 5 | A >>> 27) + g(B, C, D) + X[idx++] + Y3;
+	            B = B << 30 | B >>> 2;
+	            
+	            D += (E << 5 | E >>> 27) + g(A, B, C) + X[idx++] + Y3;
+	            A = A << 30 | A >>> 2;
+	            
+	            C += (D << 5 | D >>> 27) + g(E, A, B) + X[idx++] + Y3;
+	            E = E << 30 | E >>> 2;
+	            
+	            B += (C << 5 | C >>> 27) + g(D, E, A) + X[idx++] + Y3;
+	            D = D << 30 | D >>> 2;
+
+	            A += (B << 5 | B >>> 27) + g(C, D, E) + X[idx++] + Y3;
+	            C = C << 30 | C >>> 2;
+	        }
+
+	        //
+	        // round 4
+	        //
+	        for (var j = 0; j <= 3; j++)
+	        {
+	            // E = rotateLeft(A, 5) + h(B, C, D) + E + X[idx++] + Y4
+	            // B = rotateLeft(B, 30)
+	            E += (A << 5 | A >>> 27) + h(B, C, D) + X[idx++] + Y4;
+	            B = B << 30 | B >>> 2;
+	            
+	            D += (E << 5 | E >>> 27) + h(A, B, C) + X[idx++] + Y4;
+	            A = A << 30 | A >>> 2;
+	            
+	            C += (D << 5 | D >>> 27) + h(E, A, B) + X[idx++] + Y4;
+	            E = E << 30 | E >>> 2;
+	            
+	            B += (C << 5 | C >>> 27) + h(D, E, A) + X[idx++] + Y4;
+	            D = D << 30 | D >>> 2;
+
+	            A += (B << 5 | B >>> 27) + h(C, D, E) + X[idx++] + Y4;
+	            C = C << 30 | C >>> 2;
+	        }
+
+	        H1 += A;        //防溢出处理 保持32位
+	        H2 += B;
+	        H3 += C;
+	        H4 += D;
+	        H5 += E;
+
+	        H1 = H1 & 0xffffffff;
+	        H2 = H2 & 0xffffffff;
+	        H3 = H3 & 0xffffffff;
+	        H4 = H4 & 0xffffffff;
+	        H5 = H5 & 0xffffffff;
+	        xOff = 0;
+	        for (var i = 0; i < 16; i++)
+	        {
+	            X[i] = 0;
+	        }
+    	}
+
+    	var processWord = function (data, inOff) {
+    		var n = (data[  inOff] & 0xff) << 24;
+    		n |= (data[++inOff] & 0xff) << 16;
+    		n |= (data[++inOff] & 0xff) << 8;
+    		n |= (data[++inOff] & 0xff);
+    		X[xOff] = n;
+
+    		if(++xOff == 16)
+    		{
+    			processBlock();
+    		} 
+    	}
+
+    	var update = function (data, inOff, len) {
+    		len = len < 0 ? 0 : len;
+    		var i = 0;
+    		if(xBufOff != 0){
+    			while (i < len){
+    				xBuf[xBufOff++] = data[inOff + i++];
+    				if(xBufOff == 4)
+    				{
+    					processWord(xBuf, 0);
+    					xBufOff = 0;
+    					break;
+    				}
+    			}
+    		}
+    		var limit = ((len - i) & ~3) + i;
+    		for(; i < limit; i += 4)
+    		{
+    			processWord(data, inOff + i);
+    		}
+
+    		while (i < len)
+    		{
+    			xBuf[xBufOff++] = data[inOff + i++];
+    		}
+    		byteCount += len;
+    	}
+
+    	var updateBuf = function (data) {
+    		xBuf[xBufOff++] = data;
+
+	        if (xBufOff == xBuf.length)
+	        {
+	            processWord(xBuf, 0);
+	            xBufOff = 0;
+	        }
+
+	        byteCount++;
+    	}
+
+    	var processLength = function (bitLength) {
+    		if (xOff > 14)
+	        {
+	            processBlock();
+	        }
+
+	        X[14] = (bitLength & 0xFFFFFFFF00000000) >>> 32;
+	        X[15] = (bitLength & 0xffffffff);
+    	}
+
+    	var finish = function(){
+    		var bitLength = (byteCount << 3);
+    		updateBuf(-128);			//注意 传入结果是—128
+    		while (xBufOff != 0)
+	        {
+	            updateBuf(0);
+	        }
+
+	        processLength(bitLength);
+
+        	processBlock();
+    	}
+
+    	var doFinal = function (out, outOff) {
+    		finish();
+    		intToBigEndian(H1, out, outOff);
+	        intToBigEndian(H2, out, outOff + 4);
+	        intToBigEndian(H3, out, outOff + 8);
+	        intToBigEndian(H4, out, outOff + 12);
+	        intToBigEndian(H5, out, outOff + 16);
+	        reset();
+
+        	return DIGEST_LENGTH;
+    	}
+
+    	var final = function () {
+            var hash = new Array(DIGEST_LENGTH);
+            doFinal(hash, 0);
+            return hash;
+        }
+
+        return {
+
+            digest: function (data) {
+                reset();
+                update(data, 0, data.length);
+                return final();
+            }
+        }
+    }())
+}());;
     
 
     
+        (function () {
+	var KA = KeyouCryptography.algorithm;
+
+    /**
+     * AES对称算法
+    **/
+    var SHA224 = KA.SHA224 = (function () {
+
+    	var DIGEST_LENGTH = 28;
+
+    	var H1, H2, H3, H4, H5, H6, H7, H8;
+
+    	var X = new Array(64); 
+
+    	var xOff;
+
+    	var BYTE_LENGTH = 64;
+
+    	var xBuf = new Array(4);
+
+    	var xBufOff;
+
+    	var byteCount;
+
+    	var K = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 
+    	  0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 
+    	  0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+    	  0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8,
+    	  0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 
+    	  0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 
+    	  0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 
+    	  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 
+    	  0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 
+    	  0xbef9a3f7, 0xc67178f2];
+
+    	var Ch = function (x, y, z) {
+    		return ((x & y) ^ ((~x) & z));
+    	} 
+
+    	var Maj = function (x, y, z) {
+    		return ((x & y) ^ (x & z) ^ (y & z));
+    	}
+
+    	var Sum0 = function (x) {
+			return ((x >>> 2) | (x << 30)) ^ ((x >>> 13) | (x << 19)) ^ ((x >>> 22) | (x << 10));
+    	}
+
+    	var Sum1 = function (x) {
+			return ((x >>> 6) | (x << 26)) ^ ((x >>> 11) | (x << 21)) ^ ((x >>> 25) | (x << 7));
+    	}
+
+    	var Theta0 = function (x) {
+    		return ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+    	}
+
+    	var Theta1 = function (x) {
+    		return ((x >>> 17) | (x << 15)) ^ ((x >>> 19) | (x << 13)) ^ (x >>> 10);
+    	}
+
+    	var bigEndianToInt = function (bs, off) {
+    		var n = (bs[  off] & 0xff) << 24;
+    		n |= (bs[++off] & 0xff) << 16;
+    		n |= (bs[++off] & 0xff) << 8;
+    		n |= (bs[++off] & 0xff);
+    		return n;
+    	}
+
+    	var intToBigEndian = function (n, bs, off) { 
+    		bs[  off] = (n >>> 24) & 0xff;
+	        bs[++off] = (n >>> 16) & 0xff;
+	        bs[++off] = (n >>>  8) & 0xff;
+	        bs[++off] = (n       ) & 0xff;
+    	}
+
+    	var reset = function () {
+
+    		byteCount = 0;
+    		xBufOff = 0;
+    		for (var i = 0, len = xBuf.length; i < len; i++) {
+                xBuf[i] = 0;
+            }
+            H1 = 0xc1059ed8;
+	        H2 = 0x367cd507;
+	        H3 = 0x3070dd17;
+	        H4 = 0xf70e5939;
+	        H5 = 0xffc00b31;
+	        H6 = 0x68581511;
+	        H7 = 0x64f98fa7;
+	        H8 = 0xbefa4fa4;
+	        xOff = 0;
+	        for (var i = 0; i != X.length; i++)
+	        {
+	            X[i] = 0;
+	        }
+    	}
+
+    	var processBlock = function () {
+    		for (var t = 16; t <= 63; t++)
+	        {
+	            X[t] = Theta1(X[t - 2]) + X[t - 7] + Theta0(X[t - 15]) + X[t - 16];
+	        }
+
+	        var     a = H1;
+	        var     b = H2;
+	        var     c = H3;
+	        var     d = H4;
+	        var     e = H5;
+	        var     f = H6;
+	        var     g = H7;
+	        var     h = H8;
+
+	        var t = 0;     
+	        for(var i = 0; i < 8; i ++)
+	        {
+	            // t = 8 * i
+	            h += Sum1(e) + Ch(e, f, g) + K[t] + X[t];
+	            d += h;
+	            h += Sum0(a) + Maj(a, b, c);
+	            ++t;
+
+	            // t = 8 * i + 1
+	            g += Sum1(d) + Ch(d, e, f) + K[t] + X[t];
+	            c += g;
+	            g += Sum0(h) + Maj(h, a, b);
+	            ++t;
+
+	            // t = 8 * i + 2
+	            f += Sum1(c) + Ch(c, d, e) + K[t] + X[t];
+	            b += f;
+	            f += Sum0(g) + Maj(g, h, a);
+	            ++t;
+
+	            // t = 8 * i + 3
+	            e += Sum1(b) + Ch(b, c, d) + K[t] + X[t];
+	            a += e;
+	            e += Sum0(f) + Maj(f, g, h);
+	            ++t;
+
+	            // t = 8 * i + 4
+	            d += Sum1(a) + Ch(a, b, c) + K[t] + X[t];
+	            h += d;
+	            d += Sum0(e) + Maj(e, f, g);
+	            ++t;
+
+	            // t = 8 * i + 5
+	            c += Sum1(h) + Ch(h, a, b) + K[t] + X[t];
+	            g += c;
+	            c += Sum0(d) + Maj(d, e, f);
+	            ++t;
+
+	            // t = 8 * i + 6
+	            b += Sum1(g) + Ch(g, h, a) + K[t] + X[t];
+	            f += b;
+	            b += Sum0(c) + Maj(c, d, e);
+	            ++t;
+
+	            // t = 8 * i + 7
+	            a += Sum1(f) + Ch(f, g, h) + K[t] + X[t];
+	            e += a;
+	            a += Sum0(b) + Maj(b, c, d);
+	            ++t;
+	        }
+
+	        H1 += a;
+	        H2 += b;
+	        H3 += c;
+	        H4 += d;
+	        H5 += e;
+	        H6 += f;
+	        H7 += g;
+	        H8 += h;
+
+	        H1 = H1 & 0xffffffff;
+	        H2 = H2 & 0xffffffff;
+	        H3 = H3 & 0xffffffff;
+	        H4 = H4 & 0xffffffff;
+	        H5 = H5 & 0xffffffff;
+	        H6 = H6 & 0xffffffff;
+	        H7 = H7 & 0xffffffff;
+	        H8 = H8 & 0xffffffff;
+	        //
+	        // reset the offset and clean out the word buffer.
+	        //
+	        xOff = 0;
+	        for (var i = 0; i < 16; i++)
+	        {
+	            X[i] = 0;
+	        }
+
+    	}
+
+    	var processWord = function (data, inOff) {
+    		var n = (data[  inOff] & 0xff) << 24;
+    		n |= (data[++inOff] & 0xff) << 16;
+    		n |= (data[++inOff] & 0xff) << 8;
+    		n |= (data[++inOff] & 0xff);
+    		X[xOff] = n;
+
+    		if(++xOff == 16)
+    		{
+    			processBlock();
+    		} 
+    	}
+
+    	var update = function (data, inOff, len) {
+
+    		len = len < 0 ? 0 : len;
+    		var i = 0;
+    		if(xBufOff != 0){
+    			while (i < len){
+    				xBuf[xBufOff++] = data[inOff + i++];
+    				if(xBufOff == 4)
+    				{
+    					processWord(xBuf, 0);
+    					xBufOff = 0;
+    					break;
+    				}
+    			}
+    		}
+    		var limit = ((len - i) & ~3) + i;
+    		for(; i < limit; i += 4)
+    		{
+    			processWord(data, inOff + i);
+    		}
+
+    		while (i < len)
+    		{
+    			xBuf[xBufOff++] = data[inOff + i++];
+    		}
+    		byteCount += len;
+    	}
+
+    	var updateBuf = function (data) {
+    		xBuf[xBufOff++] = data;
+
+	        if (xBufOff == xBuf.length)
+	        {
+	            processWord(xBuf, 0);
+	            xBufOff = 0;
+	        }
+
+	        byteCount++;
+    	}
+
+    	var processLength = function (bitLength) {
+    		if (xOff > 14)
+	        {
+	            processBlock();
+	        }
+
+	        X[14] = (bitLength & 0xFFFFFFFF00000000) >>> 32;
+       		X[15] = (bitLength & 0xffffffff);
+    	}
+
+    	var finish = function(){
+    		var bitLength = (byteCount << 3);
+    		updateBuf(128);			//注意 传入结果是—128
+    		while (xBufOff != 0)
+	        {
+	            updateBuf(0);
+	        }
+
+	        processLength(bitLength);
+
+        	processBlock();
+    	}
+
+    	var doFinal = function (out, outOff) {
+    		finish();
+
+    		intToBigEndian(H1, out, outOff);
+	        intToBigEndian(H2, out, outOff + 4);
+	        intToBigEndian(H3, out, outOff + 8);
+	        intToBigEndian(H4, out, outOff + 12);
+	        intToBigEndian(H5, out, outOff + 16);
+	        intToBigEndian(H6, out, outOff + 20);
+	        intToBigEndian(H7, out, outOff + 24);
+	        reset();
+
+        	return DIGEST_LENGTH;
+    	}
+
+    	var final = function () {
+            var hash = new Array(DIGEST_LENGTH);
+            doFinal(hash, 0);
+            return hash;
+        }
+
+        return {
+
+            digest: function (data) {
+                reset();
+                update(data, 0, data.length);
+                return final();
+            }
+        }
+    }())
+}());;
+    
 
     
+        (function(){
+
+	var KA = KeyouCryptography.algorithm;
+	var Checker = KeyouCryptography.util.Checker;
+	var Hex = KeyouCryptography.util.Hex;
+	var Helper = KeyouCryptography.util.Helper;
+	var SM3 = KeyouCryptography.algorithm.SM3;
+	var SM4 = KeyouCryptography.algorithm.SM4
+	var DataPadding = KeyouCryptography.util.DataPadding;
+	var Long = KeyouCryptography.util.Long;
+
+	var Token = KA.Token = (function () {
+
+		// 固化的 SM4 算法密钥
+		var SM4_KEY = Hex.decode("FEDCBA09876543211234567890ABCDEF");
+		var MILLISECONDS = 1000;
+		var TIME_INTERVAL = 60;
+		var MIN_TIMEFACTOR = -5;
+		var MAX_TIMEFACTOR = 5;
+		var USED_SM3 = true;
+
+		var MAX_EVENTFACTOR = 0x7FFFFFFF;
+		var MIN_EVENTFACTOR = 0x80000000;
+		var ID_MIN_SIZE = 16; // byte
+		var NUMBER_2_32 = new Long(0,1).leftShift(32);
+
+		var Builder = {
+			sm3:true, 				// 算法函数：SM4 或 SM3
+			T:null, 					// UTC 事件戳 T0 / Tc
+			K:[], 						// 种子密钥
+			C:null, 					// 事件因子
+			Q:[], 						// 挑战码
+			N:null						// 动态口令长度
+		};
+
+		var TokenAlgorithm = function(seedKey, len, sm3){
+			Checker.checkArgument(seedKey != null && seedKey.length >= 16, "the length of seedKey must not be less than 128 bits (16 bytes).");
+			Checker.checkArgument(len >= 6, "the length of Token must not be less than 6.");
+			Builder.K = seedKey;
+			Builder.N = len;
+			Builder.sm3 = sm3;
+			Builder.T = null;
+			Builder.Q = [];
+			Builder.C = null;
+		}
+
+		var prot = TokenAlgorithm.prototype;
+		prot.token = token;
+		prot.timeFactor1 = timeFactor1;
+		prot.timeFactor2 = timeFactor2;
+		prot.eventFactor = eventFactor;
+		prot.challenge1 = challenge1;
+		prot.challenge2 = challenge2;
+
+		/**
+		 * [functionSM3 S = F(K, ID)]
+		 * @return   {[type]}                 [description]
+		 */
+		function functionSM3(){
+			var bytes =  Array.from(Builder.K).concat(getID());
+			return SM3.digest(bytes);
+		}
+
+		/**
+		 * [functionSM4 S = F(K, ID)]
+		 * @return   {[type]}                 [description]
+		 */
+		function functionSM4(){
+			var ID = getID();
+			var blockSize = 16;
+			var buffer = ID.concat(ID.length % blockSize == 0 ? new Array(0) : new Array(blockSize - ID.length % blockSize));
+			var key = Array.from(Builder.K).slice(0,16);
+			var S = new Array(0);
+			for (var i = 0; i < buffer.length / 16; i++) {
+				var IDn = buffer.slice(i * blockSize, (i + 1) * blockSize);
+				if (i != 0) {
+					var Sn = new BigInteger(Hex.stringify(S));
+					Sn.add(new BigInteger(Hex.stringify(IDn)));
+					IDn = new Array(Sn.toByteArray()).substring(0, 16);
+				}
+				S = SM4.decryptWithECB(IDn,key);
+			}
+			return S;
+		}
+
+		/**
+		 * [truncateSM3 截位函数]
+		 * @param    {[type]}                 S [byte[]]
+		 * @return   {[type]}                   [description]
+		 */
+		function truncateSM3(S){
+			Checker.checkArgument(S != null && S.length == 32, "illegal S:%s", Hex.encode(S));
+			var OD = new Long(0, 0);
+			var cutValue = Long.getLongFromStr("0x00000000FFFFFFFF");
+			for (var i = 0; i < S.length; i += 4) {
+				var s1 = new Long(0, S[i] & 0xFF);
+				var s2 = new Long(0, S[i + 1] & 0xFF);
+				var s3 = new Long(0, S[i + 2] & 0xFF);
+				var s4 = new Long(0, S[i + 3] & 0xFF);
+				var temp = s1.leftShift(24).OR(s2.leftShift(16)).OR(s3.leftShift(8)).OR(s4);
+				OD = temp.AND(cutValue).add(OD);
+			}
+			OD.high = 0;
+			return OD;
+		}
+
+		/**
+		 * [truncateSM4 截位函数]
+		 * @param    {[type]}                 S [byte[]]
+		 * @return   {[type]}                   [description]
+		 */
+		function truncateSM4(S){
+			Checker.checkArgument(S != null && S.length == 16, "illegal S:%s", Hex.encode(S));
+			var OD = new Long(0,0);
+			var cutValue = Long.getLongFromStr("0x00000000FFFFFFFF");
+			for (var i = 0; i < S.length; i += 4) {
+				var s1 = new Long(0, S[i] & 0xFF);
+				var s2 = new Long(0, S[i + 1] & 0xFF);
+				var s3 = new Long(0, S[i + 2] & 0xFF);
+				var s4 = new Long(0, S[i + 3] & 0xFF);
+				var temp = s1.leftShift(24).OR(s2.leftShift(16)).OR(s3.leftShift(8)).OR(s4);
+				OD = temp.AND(cutValue).add(OD);
+			}
+			OD.high = 0;
+			return OD;
+		}
+
+		return {
+			/**
+			 * [verifySerial 校验令牌序号]
+			 * @param    {[type]}                 serial [8 字节的令牌序号]
+			 * @return   {[type]}                        [令牌序号合法]
+			 * @example
+			 *
+			 * 		var serial = "4A41610C";
+    	 *		var Token = KeyouCryptography.algorithm.token;
+    	 *		var bool = Token.verifySerial(serial);
+			 * 
+			 */
+			verifySerial:function(serial){
+				if (serial == null || serial.length != 8) {
+					return false;
+				}
+				var bytes = Helper.ascstr2array(serial);
+				var tmp = bytes[0];
+				for (var i = 1; i < bytes.length - 1; i++) {
+					tmp = Helper.ascXOR(tmp, bytes[i]);
+				}
+				return tmp == bytes[bytes.length - 1];
+			},
+
+			/**
+			 * [verifyToken 验证动态口令]
+			 * @param    {[type]}                 token    [6 字节的口令]
+			 * @param    {[type]}                 workSeed [20  字节的工作种子密钥]
+			 * @return   {[type]}                          [{@code true} 验证通过，{@code false} 验证失败]
+			 * @example
+			 *
+			 * 		var serial = 'EE5B4695';
+			 *    var activeCode = '008146156841';
+			 *    var Token = KeyouCryptography.algorithm.token;
+			 *	  var workSeed = Token.generateWorkSeed(serial, activeCode);
+			 */
+			verifyToken:function(token, workSeed){
+				if(token == null || token.length < 6){
+					return false;
+				}
+				var timeFactor = Math.floor(new Date().getTime() / MILLISECONDS / TIME_INTERVAL);
+				var tokenSize = token.length;
+				for (var i = MIN_TIMEFACTOR; i <= MAX_TIMEFACTOR; i++) {
+					var tokenAlgorithm = new TokenAlgorithm(workSeed, tokenSize, USED_SM3);
+					tokenAlgorithm.timeFactor2(timeFactor + i);
+					if (token == tokenAlgorithm.token()) {
+						return true;
+					}
+				}
+				return false;
+			},
+
+			/**
+			 * [verifyActiveCode 验证激活码]
+			 * @param    {[type]}                 activeCode [12 字节的激活码]
+			 * @return   {[type]}                            [{@code true} 激活码有效]
+			 * @example
+			 *
+			 * 		var serial = "65BAF60B";
+			 *		var activeCode = "123456787633";
+			 *		var Token = KeyouCryptography.algorithm.token;
+			 *		var bool = Token.verifyActiveCode(serial, activeCode);
+			 * 
+			 */
+			verifyActiveCode:function(serial, activeCode){
+				Checker.checkArgument(serial != null && serial.length == 8, "the size of serial must be 8 byte: %s", serial);
+				if (activeCode == null || activeCode.length < 12) {
+					return false;
+				}
+				var initSeed = generateInitSeed(serial);
+				var tokenAlgorithm = new TokenAlgorithm(initSeed, 6, USED_SM3);
+				tokenAlgorithm.challenge2(Helper.ascstr2array(activeCode), 0, 8);
+				var otp = tokenAlgorithm.token();
+				var a = Builder;
+				return activeCode.substring(8, 12) == otp.substring(2,6);
+			},
+
+			/**
+			 * [generateActiveCode 生成激活码]
+			 * @param    {[type]}                 serial [8 字节令牌序列号]
+			 * @return   {[type]}                        [12 字节的激活码]
+			 */
+			generateActiveCode:function(serial){
+				Checker.checkArgument(serial != null && serial.length == 8, "the size of serial must be 8 byte: %s", serial);
+				Checker.checkArgument(this.verifySerial(serial), "verify serial failed.");
+				var activeCode = Helper.generateDecRandom(8);
+				var initSeed = generateInitSeed(serial);
+				var tokenAlgorithm = new TokenAlgorithm(initSeed, 6, USED_SM3);
+				tokenAlgorithm.challenge1(Helper.ascstr2array(activeCode));
+				var otp = tokenAlgorithm.token();
+				return activeCode + otp.substring(2, 6);
+			},
+
+			/**
+			 * [generateWorkSeed 生成工作种子]
+			 * @param    {[type]}                 serial     [8 字节长度的令牌序号]
+			 * @param    {[type]}                 activeCode [12 字节长度的激活码]
+			 * @return   {[type]}                            [工作种子]
+			 */
+			generateWorkSeed:function(serial, activeCode){
+				Checker.checkArgument(activeCode != null && activeCode.length == 12, "the size of active code must be 12 byte: %d", activeCode);
+				Checker.checkArgument(this.verifyActiveCode(serial, activeCode), "verify activeCode failed.");
+				var initSeed = generateInitSeed(serial);
+				var data1 = new Array();
+				data1 = data1.concat(Helper.ascstr2array(activeCode).slice(0, 8));
+				var fillData1 = DataPadding.encodeWith0x00(data1, 16);
+				var in1 = new Array();
+				in1 = in1.concat(initSeed.slice(0,32),fillData1.slice(0,16));
+				var workSeed = new Array();
+				workSeed = workSeed.concat(SM3.digest(in1).slice(0,20));
+				return workSeed;
+			},
+
+			/**
+			 * [generateToken 生成 6 位口令]
+			 * @param    {[type]}                 serial     [8位令牌序号]
+			 * @param    {[type]}                 activeCode [12位激活码]
+			 * @return   {[type]}                            [6位口令]
+			 */
+			generateToken:function(serial, activeCode){
+				Checker.checkArgument(serial != null && serial.length == 8, "the size of serial must be 8 byte: %s", serial);
+				Checker.checkArgument(activeCode != null && activeCode.length == 12, "the size of active code must be 12 byte: %d", activeCode);
+				var workSeed = this.generateWorkSeed(serial, activeCode);
+				var timeFactor = Math.floor(new Date().getTime() / MILLISECONDS / TIME_INTERVAL);
+				var tokenAlgorithm = new TokenAlgorithm(workSeed, 6, USED_SM3);
+				tokenAlgorithm.timeFactor2(timeFactor);
+				return tokenAlgorithm.token();
+			}
+
+
+		}
+
+		/**
+		 * [verifyUUID 校验 UUID]
+		 * @param    {[type]}                 uuid       [需校验的UUID]
+		 * @param    {[type]}                 checkValue [校验值]
+		 * @return   {[type]}                            [UUID合法]
+		 */
+		function verifyUUID(uuid, checkValue){
+			var hash = Hex.encode(SM3.digest(Helper.ascstr2array(uuid)));
+			if (checkValue === hash.substring(0, 4)) {
+				return true;
+			}
+			return false;
+		}
+
+		/**
+		 * [verifySeed 验证作为口令种子密钥的唯一标识是否正确并使用固化的 SM4 密钥加密唯一标识]
+		 * @param    {[type]}                 uuid [手机令牌唯一标识，长度为 12 bytes]
+		 * @return   {[type]}                      [手机令牌唯一标识密文值，32 bytes 的密文值 + 4 bytes 的校验值]
+		 */
+		function verifySeed(uuid){
+			Checker.checkArgument(uuid != null && uuid.length == 12, "the length of uuid must be equals 12 bytes.");
+			var UUID = Helper.ascstr2array(uuid.substring(0, 8));
+			var checkValue = uuid.substring(8, 12);		
+			Checker.checkState(verifyUUID(uuid.substring(0, 8), checkValue), "checked uuid failed, try again.");
+			var uuidCipher = SM4.encryptWithECB(DataPadding.encodeWithPKCS5(UUID,SM4_KEY.length),SM4_KEY);
+			return uuidCipher + checkValue;
+		}
+
+		/**
+		 * [verifyToken 验证动态口令]
+		 * @Author   zengw
+		 * @DateTime 2018-06-29T11:00:25+0800
+		 * @param    {[type]}                 token [待验证的动态口令]
+		 * @param    {[type]}                 uuid  [用户唯一标识密文，32 bytes 密文值 + 4 bytes 校验值]
+		 * @return   {[type]}                       [{@code true} 验证通过，{@code false} 验证失败]
+		 */
+		function verifyToken2(token, uuid){
+			if(token == null || token.length <6){
+				return false;
+			}
+			Checker.checkArgument(uuid != null && uuid.length == 36, "illegal uuid(36 bytes):%s", uuid);
+			var uuidCipher = Hex.decode(uuid.substring(0, 32));
+			var checkValue = uuid.substring(32, 36);
+			var UUID = SM4.decryptWithECB(DataPadding.decodeWithPKCS5(uuidCipher),SM4_KEY);
+			Checker.checkState(verifyUUID(UUID.toString(), checkValue), "checked uuid failed.");
+
+			var seedKey = SM3.digest(UUID);
+			var timeFactor = Math.floor(new Date().getTime() / MILLISECONDS / TIME_INTERVAL);
+			var tokenSize = token.length;
+			for (var i = MIN_TIMEFACTOR; i <= MAX_TIMEFACTOR; i++) {
+				var tokenAlgorithm = new TokenAlgorithm(seedKey, tokenSize, USED_SM3);
+				tokenAlgorithm.timeFactor2(timeFactor + i);
+				if (token == tokenAlgorithm.token()) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/**
+		 * [verifyToken 验证动态口令]
+		 * @param    {[type]}                 token      [待验证的动态口令，长度为 6 字节的字符串]
+		 * @param    {[type]}                 serial     [令牌序号，长度为 8 字节的字符串]
+		 * @param    {[type]}                 activeCode [激活码，长度为 12 字节的字符串]
+		 * @return   {[type]}                            [{@code true} 验证通过，{@code false} 验证失败]
+		 */
+		function verifyToken3(token, serial, activeCode){
+			Checker.checkArgument(serial != null && serial.length == 8, "the size of serial must be 8 byte: %s", serial);
+			Checker.checkArgument(activeCode != null && activeCode.length == 12,"the size of active code must be 12 byte: %d", activeCode);
+			if(token == null || token.length < 6){
+				return false;
+			}
+			var workSeed = generateWorkSeed(serial, activeCode);
+			return verifyToken(token, workSeed);
+		}
+
+		/**
+		 * [generateInitSeed 生成初始种子]
+		 * @param    {[type]}                 serial [8 字节令牌序列号]
+		 * @return   {[type]}                        [初始种子]
+		 */
+		function generateInitSeed(serial){
+			Checker.checkArgument(serial != null && serial.length == 8, "the size of serial must be 8 byte: %s", serial);
+			Checker.checkArgument(Token.verifySerial(serial), "verify serial failed.");
+			var serialBuf = Helper.ascstr2array(serial);
+			var unSerialBuf = new Array(serial.length);
+			for(var i = 0; i < serial.length; i++){
+				unSerialBuf[i] = Helper.ascXOR(Helper.ascstr2array('F')[0], serialBuf[i]);
+			}
+			var serialHash = SM3.digest(serialBuf);
+			var unSerialHash = SM3.digest(unSerialBuf);
+			var serialAll = new Array();
+			serialAll = serialAll.concat(serialHash.slice(0, 32),unSerialHash.slice(0,32));
+			return SM3.digest(serialAll);
+		}
+
+		/**
+		 * [generateToken 生成 6 位口令]
+		 * @param    {[type]}                 serial     [8位令牌序号]
+		 * @param    {[type]}                 activeCode [12位激活码]
+		 * @return   {[type]}                            [6位口令]
+		 */
+		// function generateToken(serial, activeCode){
+		// 	Checker.checkArgument(serial != null && serial.length == 8, "the size of serial must be 8 byte: %s", serial);
+		// 	Checker.checkArgument(activeCode != null && activeCode.length == 12, "the size of active code must be 12 byte: %d", activeCode);
+		// 	var workSeed = generateWorkSeed(serial, activeCode);
+		// 	var timeFactor = Math.floor(new Date().getTime() / MILLISECONDS / TIME_INTERVAL);
+		// 	var tokenAlgorithm = new TokenAlgorithm(workSeed, 6, USED_SM3);
+		// 	tokenAlgorithm.timeFactor2(timeFactor);
+		// 	return tokenAlgorithm.token();
+		// }
+			
+		/**
+		 * [token 生成指长度的 Token]
+		 * @return   {[type]}                 [指定长度的 Token 值]
+		 */
+		function token(){
+			Checker.checkArgument(Builder.N <= 12, "the length of token can't be more than 12.");
+			var S = Builder.sm3 ? functionSM3() : functionSM4();
+			var OD = Builder.sm3 ? truncateSM3(S) : truncateSM4(S);
+			var P = 0;
+			if (Builder.N <= 8) {
+				P = OD.low % Math.pow(10, Builder.N);
+			}
+			else if(Builder.N <= 12){
+				P = ((OD.high % Math.pow(10, Builder.N - 8)) << 32) + OD.low;
+			}
+			return stringFormat(P, Builder.N);
+		}
+
+		/**
+		 * [timeFactor 设置动态口令的时间因子]
+		 * @Author   zengw
+		 * @DateTime 2018-06-29T11:26:08+0800
+		 * @param    {[type]}                 timestamp    [事件戳：单位为秒]
+		 * @param    {[type]}                 timeInterval [口令周期：单位为秒，取值范围为 [1, 60]]
+		*/
+		function timeFactor1(timestamp, timeInterval){
+			Checker.checkArgument(timeInterval > 0 && timeInterval <= 60, "the value must be [1, 60].");
+			Builder.T = timestamp / timeInterval; 
+		}
+
+		/**
+		 * [timeFactor 设置动态口令的时间因子]
+		 * @param    {[type]}                 timeFactor [动态口令因子]
+		 */
+		 function timeFactor2(timeFactor){
+		 	timeFactor = Long.getLongFromStr(timeFactor.toString(16));
+			var min = new Long(0,1);
+			var max = new Long(0x7FFFFFFF,0xFFFFFFFF);
+			Checker.checkArgument(timeFactor.bigger(min) && max.bigger(timeFactor), "the size of timeFactor must be 8 bytes[-2^63, 2^63-1].");
+			Builder.T = (timeFactor.high << 32) + timeFactor.low;
+		}
+
+		/**
+		 * [eventFactor 设置动态口令的事件因子]
+		 * @param    {[type]}                 eventFactor [事件因子：一个四字节的整数]
+		 */
+		function eventFactor(eventFactor){
+			Checker.checkArgument(MAX_EVENTFACTOR >= eventFactor && eventFactor >= MIN_EVENTFACTOR, "the size of eventFactor is [%d, %d]", MIN_EVENTFACTOR, MAX_EVENTFACTOR);
+			Builder.C = eventFactor;
+		}
+
+		/**
+		 * [challenge 设置动态口令的挑战码]
+		 * @param    {[type]}                 challenge [挑战码：长度不小于 4 bytes]
+		 */
+		 function challenge1(challenge){
+			Checker.checkArgument(challenge != null && challenge.length >= 4, "the length of challenge must not be less than 4 bytes.");
+			Builder.Q = challenge;
+		}
+
+		/**
+		 * [challenge 设置动态口令的挑战码]
+		 * @param    {[type]}                 challenge [挑战码：长度不小于 4 bytes]
+		 * @param    {[type]}                 offset    [截取数据的偏移值]
+		 * @param    {[type]}                 len       [截取数据的长度]
+		 */
+		function challenge2(challenge, offset, len){
+			Checker.checkArgument(challenge != null && challenge.length - offset >= 4 && len >= 4, "the length of challenge must not be less than 4 bytes.");
+			var bytes = new Array(len);
+			bytes = challenge.slice(offset,len+offset);
+			Builder.Q = bytes;
+		}
+
+
+		/**
+		 * [getID ID = (T | C | Q) , ID.length >= 128 bits 规范文档要求此检查]
+		 * @return   {[type]}                 [description]
+		 */
+		function getID(){
+			var byte = new Array();
+
+			byte = byte.concat(Builder.T == null ? new Array() : Helper.convertLong(Builder.T.toString(16)));
+			byte = byte.concat(Builder.C == null ? new Array() : Helper.convertInteger(parseInt(Builder.C)));
+			byte = byte.concat(Builder.Q);
+			if (byte.length < ID_MIN_SIZE) {
+				var len = ID_MIN_SIZE - byte.length;
+				for(var i = 0; i < len; i ++){
+					byte.push(0);
+				}
+			}
+			return byte;
+		}
+
+		/**
+		 * [stringFormat 格式化字符串，长度不够前面补0]
+		 * @param    {[type]}                 param [需转换数据。整型/字符串]
+		 * @param    {[type]}                 len   [字符串最小长度]
+		 * @return   {[type]}                       [转换后字符串]
+		 */
+		function stringFormat(param,len){
+			param = param.toString();
+			var paramLength = param.length;
+			if(paramLength < len){
+				var lack = len - paramLength;
+				var zero = '';
+				for(var i = 0; i < lack; i++){
+					zero += '0';
+				}
+				param = zero + param;
+			}
+			return param;
+		}
+
+	}());
+}());;
+    
 
     
+        (function () {
+	var KA = KeyouCryptography.algorithm;
+
+	var SHA256 = KA.SHA256 = (function () {
+
+		var DIGEST_LENGTH = 32;
+
+    	var H1, H2, H3, H4, H5, H6, H7, H8;
+
+    	var X = new Array(64); 
+
+    	var xOff;
+
+    	var BYTE_LENGTH = 64;
+
+    	var xBuf = new Array(4);
+
+    	var xBufOff;
+
+    	var byteCount;
+
+    	var K = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 
+    	  0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 
+    	  0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+    	  0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8,
+    	  0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 
+    	  0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 
+    	  0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 
+    	  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 
+    	  0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 
+    	  0xbef9a3f7, 0xc67178f2];
+
+    	var Ch = function (x, y, z) {
+    		return ((x & y) ^ ((~x) & z));
+    	} 
+
+    	var Maj = function (x, y, z) {
+    		return ((x & y) ^ (x & z) ^ (y & z));
+    	}
+
+    	var Sum0 = function (x) {
+			return ((x >>> 2) | (x << 30)) ^ ((x >>> 13) | (x << 19)) ^ ((x >>> 22) | (x << 10));
+    	}
+
+    	var Sum1 = function (x) {
+			return ((x >>> 6) | (x << 26)) ^ ((x >>> 11) | (x << 21)) ^ ((x >>> 25) | (x << 7));
+    	}
+
+    	var Theta0 = function (x) {
+    		return ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+    	}
+
+    	var Theta1 = function (x) {
+    		return ((x >>> 17) | (x << 15)) ^ ((x >>> 19) | (x << 13)) ^ (x >>> 10);
+    	}
+
+    	var bigEndianToInt = function (bs, off) {
+    		var n = (bs[  off] & 0xff) << 24;
+    		n |= (bs[++off] & 0xff) << 16;
+    		n |= (bs[++off] & 0xff) << 8;
+    		n |= (bs[++off] & 0xff);
+    		return n;
+    	}
+
+    	var intToBigEndian = function (n, bs, off) { 
+    		bs[  off] = (n >>> 24) & 0xff;
+	        bs[++off] = (n >>> 16) & 0xff;
+	        bs[++off] = (n >>>  8) & 0xff;
+	        bs[++off] = (n       ) & 0xff;
+    	}
+
+    	var reset = function () {
+
+    		byteCount = 0;
+    		xBufOff = 0;
+    		for (var i = 0, len = xBuf.length; i < len; i++) {
+                xBuf[i] = 0;
+            }
+            H1 = 0x6a09e667;
+	        H2 = 0xbb67ae85;
+	        H3 = 0x3c6ef372;
+	        H4 = 0xa54ff53a;
+	        H5 = 0x510e527f;
+	        H6 = 0x9b05688c;
+	        H7 = 0x1f83d9ab;
+	        H8 = 0x5be0cd19;
+	        xOff = 0;
+	        for (var i = 0; i != X.length; i++)
+	        {
+	            X[i] = 0;
+	        }
+    	}
+
+    	var processBlock = function () {
+
+	    	for (var t = 16; t <= 63; t++)
+	        {
+	            X[t] = Theta1(X[t - 2]) + X[t - 7] + Theta0(X[t - 15]) + X[t - 16];
+	        }
+
+	        //
+	        // set up working variables.
+	        //
+	        var     a = H1;
+	        var     b = H2;
+	        var     c = H3;
+	        var     d = H4;
+	        var     e = H5;
+	        var     f = H6;
+	        var     g = H7;
+	        var     h = H8;
+
+	        var t = 0;     
+	        for(var i = 0; i < 8; i ++)
+	        {
+	            // t = 8 * i
+	            h += Sum1(e) + Ch(e, f, g) + K[t] + X[t];
+	            d += h;
+	            h += Sum0(a) + Maj(a, b, c);
+	            ++t;
+
+	            // t = 8 * i + 1
+	            g += Sum1(d) + Ch(d, e, f) + K[t] + X[t];
+	            c += g;
+	            g += Sum0(h) + Maj(h, a, b);
+	            ++t;
+
+	            // t = 8 * i + 2
+	            f += Sum1(c) + Ch(c, d, e) + K[t] + X[t];
+	            b += f;
+	            f += Sum0(g) + Maj(g, h, a);
+	            ++t;
+
+	            // t = 8 * i + 3
+	            e += Sum1(b) + Ch(b, c, d) + K[t] + X[t];
+	            a += e;
+	            e += Sum0(f) + Maj(f, g, h);
+	            ++t;
+
+	            // t = 8 * i + 4
+	            d += Sum1(a) + Ch(a, b, c) + K[t] + X[t];
+	            h += d;
+	            d += Sum0(e) + Maj(e, f, g);
+	            ++t;
+
+	            // t = 8 * i + 5
+	            c += Sum1(h) + Ch(h, a, b) + K[t] + X[t];
+	            g += c;
+	            c += Sum0(d) + Maj(d, e, f);
+	            ++t;
+
+	            // t = 8 * i + 6
+	            b += Sum1(g) + Ch(g, h, a) + K[t] + X[t];
+	            f += b;
+	            b += Sum0(c) + Maj(c, d, e);
+	            ++t;
+
+	            // t = 8 * i + 7
+	            a += Sum1(f) + Ch(f, g, h) + K[t] + X[t];
+	            e += a;
+	            a += Sum0(b) + Maj(b, c, d);
+	            ++t;
+	        }
+
+	        H1 += a;
+	        H2 += b;
+	        H3 += c;
+	        H4 += d;
+	        H5 += e;
+	        H6 += f;
+	        H7 += g;
+	        H8 += h;
+
+	        H1 = H1 & 0xffffffff;
+	        H2 = H2 & 0xffffffff;
+	        H3 = H3 & 0xffffffff;
+	        H4 = H4 & 0xffffffff;
+	        H5 = H5 & 0xffffffff;
+	        H6 = H6 & 0xffffffff;
+	        H7 = H7 & 0xffffffff;
+	        H8 = H8 & 0xffffffff;
+	        //
+	        // reset the offset and clean out the word buffer.
+	        //
+	        xOff = 0;
+	        for (var i = 0; i < 16; i++)
+	        {
+	            X[i] = 0;
+	        }
+    	}
+
+    	var processWord = function (data, inOff) {
+    		var n = (data[  inOff] & 0xff) << 24;
+    		n |= (data[++inOff] & 0xff) << 16;
+    		n |= (data[++inOff] & 0xff) << 8;
+    		n |= (data[++inOff] & 0xff);
+    		X[xOff] = n;
+
+    		if(++xOff == 16)
+    		{
+    			processBlock();
+    		} 
+    	}
+
+    	var update = function (data, inOff, len) {
+
+    		len = len < 0 ? 0 : len;
+    		var i = 0;
+    		if(xBufOff != 0){
+    			while (i < len){
+    				xBuf[xBufOff++] = data[inOff + i++];
+    				if(xBufOff == 4)
+    				{
+    					processWord(xBuf, 0);
+    					xBufOff = 0;
+    					break;
+    				}
+    			}
+    		}
+    		var limit = ((len - i) & ~3) + i;
+    		for(; i < limit; i += 4)
+    		{
+    			processWord(data, inOff + i);
+    		}
+
+    		while (i < len)
+    		{
+    			xBuf[xBufOff++] = data[inOff + i++];
+    		}
+    		byteCount += len;
+    	}
+
+    	var updateBuf = function (data) {
+    		xBuf[xBufOff++] = data;
+
+	        if (xBufOff == xBuf.length)
+	        {
+	            processWord(xBuf, 0);
+	            xBufOff = 0;
+	        }
+
+	        byteCount++;
+    	}
+
+    	var processLength = function (bitLength) {
+    		if (xOff > 14)
+	        {
+	            processBlock();
+	        }
+
+	        X[14] = (bitLength & 0xFFFFFFFF00000000) >>> 32;
+       		X[15] = (bitLength & 0xffffffff);
+    	}
+
+    	var finish = function(){
+    		var bitLength = (byteCount << 3);
+    		updateBuf(128);			
+    		while (xBufOff != 0)
+	        {
+	            updateBuf(0);
+	        }
+
+	        processLength(bitLength);
+
+        	processBlock();
+    	}
+
+    	var doFinal = function (out, outOff) {
+    		finish();
+
+    		intToBigEndian(H1, out, outOff);
+	        intToBigEndian(H2, out, outOff + 4);
+	        intToBigEndian(H3, out, outOff + 8);
+	        intToBigEndian(H4, out, outOff + 12);
+	        intToBigEndian(H5, out, outOff + 16);
+	        intToBigEndian(H6, out, outOff + 20);
+	        intToBigEndian(H7, out, outOff + 24);
+	        intToBigEndian(H8, out, outOff + 28);
+	        reset();
+
+        	return DIGEST_LENGTH;
+    	}
+
+    	var final = function () {
+            var hash = new Array(DIGEST_LENGTH);
+            doFinal(hash, 0);
+            return hash;
+        }
+
+        return {
+
+            digest: function (data) {
+                reset();
+                update(data, 0, data.length);
+                return final();
+            }
+        }
+	}());
+}());;
+    
 
     
+        (function () {
+	var KA = KeyouCryptography.algorithm;
+	var Long = KeyouCryptography.util.Long;
+
+	var SHA384 = KA.SHA384 = (function () {
+		var DIGEST_LENGTH = 48;
+
+		var BYTE_LENGTH = 128;
+
+    	var xBuf = new Array(8);
+
+    	var xBufOff;
+
+    	var byteCount;
+
+		var byteCount1, byteCount2;
+
+    	var H1, H2, H3, H4, H5, H6, H7, H8;
+
+    	var W = new Array(80); 
+
+    	var wOff;
+
+    	var KStr = [
+    		"0x428a2f98d728ae22", "0x7137449123ef65cd", "0xb5c0fbcfec4d3b2f", "0xe9b5dba58189dbbc",
+			"0x3956c25bf348b538", "0x59f111f1b605d019", "0x923f82a4af194f9b", "0xab1c5ed5da6d8118",
+			"0xd807aa98a3030242", "0x12835b0145706fbe", "0x243185be4ee4b28c", "0x550c7dc3d5ffb4e2",
+			"0x72be5d74f27b896f", "0x80deb1fe3b1696b1", "0x9bdc06a725c71235", "0xc19bf174cf692694",
+			"0xe49b69c19ef14ad2", "0xefbe4786384f25e3", "0x0fc19dc68b8cd5b5", "0x240ca1cc77ac9c65",
+			"0x2de92c6f592b0275", "0x4a7484aa6ea6e483", "0x5cb0a9dcbd41fbd4", "0x76f988da831153b5",
+			"0x983e5152ee66dfab", "0xa831c66d2db43210", "0xb00327c898fb213f", "0xbf597fc7beef0ee4",
+			"0xc6e00bf33da88fc2", "0xd5a79147930aa725", "0x06ca6351e003826f", "0x142929670a0e6e70",
+			"0x27b70a8546d22ffc", "0x2e1b21385c26c926", "0x4d2c6dfc5ac42aed", "0x53380d139d95b3df",
+			"0x650a73548baf63de", "0x766a0abb3c77b2a8", "0x81c2c92e47edaee6", "0x92722c851482353b",
+			"0xa2bfe8a14cf10364", "0xa81a664bbc423001", "0xc24b8b70d0f89791", "0xc76c51a30654be30",
+			"0xd192e819d6ef5218", "0xd69906245565a910", "0xf40e35855771202a", "0x106aa07032bbd1b8",
+			"0x19a4c116b8d2d0c8", "0x1e376c085141ab53", "0x2748774cdf8eeb99", "0x34b0bcb5e19b48a8",
+			"0x391c0cb3c5c95a63", "0x4ed8aa4ae3418acb", "0x5b9cca4f7763e373", "0x682e6ff3d6b2b8a3",
+			"0x748f82ee5defb2fc", "0x78a5636f43172f60", "0x84c87814a1f0ab72", "0x8cc702081a6439ec",
+			"0x90befffa23631e28", "0xa4506cebde82bde9", "0xbef9a3f7b2c67915", "0xc67178f2e372532b",
+			"0xca273eceea26619c", "0xd186b8c721c0c207", "0xeada7dd6cde0eb1e", "0xf57d4f7fee6ed178",
+			"0x06f067aa72176fba", "0x0a637dc5a2c898a6", "0x113f9804bef90dae", "0x1b710b35131c471b",
+			"0x28db77f523047d84", "0x32caab7b40c72493", "0x3c9ebe0a15c9bebc", "0x431d67c49c100d4c",
+			"0x4cc5d4becb3e42b6", "0x597f299cfc657e2a", "0x5fcb6fab3ad6faec", "0x6c44198c4a475817"];
+		var K = [];
+
+
+    	var Ch = function (x, y, z) {
+    		//return ((x & y) ^ ((~x) & z));
+    		return x.AND(y).XOR((x.Negate().AND(z)));
+    	} 
+
+    	var Maj = function (x, y, z) {
+    		//return ((x & y) ^ (x & z) ^ (y & z));
+    		return x.AND(y).XOR(x.AND(z), y.AND(z));
+    	}
+
+    	var Sum0 = function (x) {
+			//return ((x << 36)|(x >>> 28)) ^ ((x << 30)|(x >>> 34)) ^ ((x << 25)|(x >>> 39));
+    		return x.leftShift(36).OR(x.rightShift(28)).XOR(x.leftShift(30).OR(x.rightShift(34)), x.leftShift(25).OR(x.rightShift(39)));
+    	}
+
+    	var Sum1 = function (x) {
+			//return ((x << 50)|(x >>> 14)) ^ ((x << 46)|(x >>> 18)) ^ ((x << 23)|(x >>> 41));
+    		return x.leftShift(50).OR(x.rightShift(14)).XOR(x.leftShift(46).OR(x.rightShift(18)), x.leftShift(23).OR(x.rightShift(41)));
+    	}
+
+    	var Sigma0 = function (x) {
+    		//return ((x << 63)|(x >>> 1)) ^ ((x << 56)|(x >>> 8)) ^ (x >>> 7);
+    		return x.leftShift(63).OR(x.rightShift(1)).XOR(x.leftShift(56).OR(x.rightShift(8)), x.rightShift(7));
+    	}
+
+    	var Sigma1 = function (x) {
+    		//return ((x << 45)|(x >>> 19)) ^ ((x << 3)|(x >>> 61)) ^ (x >>> 6);
+    		return x.leftShift(45).OR(x.rightShift(19)).XOR(x.leftShift(3).OR(x.rightShift(61)), x.rightShift(6));
+    	}
+
+    	var bigEndianToInt = function (bs, off) {
+    		var n = (bs[  off] & 0xff) << 24;
+    		n |= (bs[++off] & 0xff) << 16;
+    		n |= (bs[++off] & 0xff) << 8;
+    		n |= (bs[++off] & 0xff);
+    		return n;
+    	}
+
+		var intToBigEndian = function (n, bs, off) { 
+    		bs[  off] = (n >>> 24) & 0xff;
+	        bs[++off] = (n >>> 16) & 0xff;
+	        bs[++off] = (n >>>  8) & 0xff;
+	        bs[++off] = (n       ) & 0xff;
+    	}
+
+    	var bigEndianToLong = function (bs, off) {
+    		var l = new Long(0, 0);
+    		l.high = bigEndianToInt(bs, off);
+    		l.low = bigEndianToInt(bs, off + 4);
+    		return l;
+    	}
+    	
+    	var longToBigEndian = function (n, bs, off) {
+    		intToBigEndian(n.high, bs, off);
+        	intToBigEndian(n.low, bs, off + 4);
+    	}
+
+    	var reset = function () {
+
+    		for(var i = 0 ; i < KStr.length; i++){
+    			K[i] = Long.getLongFromStr(KStr[i]);
+    		}
+
+    		xBufOff = 0;
+    		H1 = Long.getLongFromStr("0xcbbb9d5dc1059ed8");
+	        H2 = Long.getLongFromStr("0x629a292a367cd507");
+	        H3 = Long.getLongFromStr("0x9159015a3070dd17");
+	        H4 = Long.getLongFromStr("0x152fecd8f70e5939");
+	        H5 = Long.getLongFromStr("0x67332667ffc00b31");
+	        H6 = Long.getLongFromStr("0x8eb44a8768581511");
+	        H7 = Long.getLongFromStr("0xdb0c2e0d64f98fa7");
+	        H8 = Long.getLongFromStr("0x47b5481dbefa4fa4");
+
+
+	        //test start
+	        //
+	        var t3 = H1.AND(H2);
+	        var t4 = H1.OR(H2);
+	        var t5 = H1.XOR(H2);
+	        var t6 = H1.leftShift(36);
+	        var t7 = H1.rightShift(40);
+	        var t8 = H5.Negate();
+	        var t9 = H1.add(H2);
+
+	        xBufOff = 0;
+	        for (var i = 0; i < xBuf.length; i++)
+	        {
+	            xBuf[i] = 0;
+	        }
+
+	        wOff = 0;
+	        for (var i = 0; i != W.length; i++)
+	        {
+	            W[i] = new Long(0, 0);
+	        }
+
+	        var l3 = Ch(H5, H6, H7);
+	        var l4 = Maj(H1, H2, H3);
+	        var l5 = Sum0(H1);
+	        var l6 = Sum1(H5);
+	        var l7 = Sigma0(H1);
+	        var l8 = Sigma1(H1);
+	        var l9 = H8.add(l6, l3, K[0], W[0]); //test end
+
+	        byteCount1 = new Long(0,0);
+	       	byteCount2 = new Long(0,0);
+    	}
+
+    	var adjustByteCounts = function () {
+    		if (byteCount1.high > 0x1fffffff)
+	        {
+	            byteCount2 = byteCount2.add(byteCount1.rightShift(61));
+	            var temp = new Long(0x1fffffff, 0xffffffff);
+	            byteCount1 = byteCount1.AND(temp);
+	        }
+    	}
+
+    	var processBlock = function () {
+    		adjustByteCounts();
+    		for (var t = 16; t <= 79; t++)
+	        {
+	            W[t] = Sigma1(W[t - 2]).add(W[t - 7], Sigma0(W[t - 15]), W[t - 16]);
+	        }
+
+
+	        //FOR test 
+	        var aa = Sigma1 (W[20]).add(W[15], Sigma0(W[7]), W[6]);
+
+
+	        //
+	        // set up working variables.
+	        //
+	        var     a = H1;
+	        var     b = H2;
+	        var     c = H3;
+	        var     d = H4;
+	        var     e = H5;
+	        var     f = H6;
+	        var     g = H7;
+	        var     h = H8;
+
+	        var t = 0;
+	        for(var i = 0; i < 10; i ++)
+	        {
+	          // t = 8 * i
+	          h = h.add(Sum1(e), Ch(e, f, g), K[t], W[t++]);
+	          d = d.add(h);
+	          h = h.add(Sum0(a), Maj(a, b, c));
+
+	          // t = 8 * i + 1
+	          g = g.add(Sum1(d), Ch(d, e, f), K[t], W[t++]);
+	          c = c.add(g);
+	          g = g.add(Sum0(h), Maj(h, a, b));
+
+	          // t = 8 * i + 2
+	          f = f.add(Sum1(c), Ch(c, d, e), K[t], W[t++]);
+	          b = b.add(f);
+	          f = f.add(Sum0(g), Maj(g, h, a));
+
+	          // t = 8 * i + 3
+	          e = e.add(Sum1(b), Ch(b, c, d), K[t], W[t++]);
+	          a = a.add(e);
+	          e = e.add(Sum0(f), Maj(f, g, h));
+
+	          // t = 8 * i + 4
+	          d = d.add(Sum1(a), Ch(a, b, c), K[t], W[t++]);
+	          h = h.add(d);
+	          d = d.add(Sum0(e), Maj(e, f, g));
+
+	          // t = 8 * i + 5
+	          c = c.add(Sum1(h), Ch(h, a, b), K[t], W[t++]);
+	          g = g.add(c);
+	          c = c.add(Sum0(d), Maj(d, e, f));
+
+	          // t = 8 * i + 6
+	          b = b.add(Sum1(g), Ch(g, h, a), K[t], W[t++]);
+	          f = f.add(b);
+	          b = b.add(Sum0(c), Maj(c, d, e));
+
+	          // t = 8 * i + 7
+	          a = a.add(Sum1(f), Ch(f, g, h), K[t], W[t++]);
+	          e = e.add(a);
+	          a = a.add(Sum0(b), Maj(b, c, d));
+	        }
+
+	        H1 = H1.add(a);
+	        H2 = H2.add(b);
+	        H3 = H3.add(c);
+	        H4 = H4.add(d);
+	        H5 = H5.add(e);
+	        H6 = H6.add(f);
+	        H7 = H7.add(g);
+	        H8 = H8.add(h);
+
+	        //
+	        // reset the offset and clean out the word buffer.
+	        //
+	        wOff = 0;
+	        for (var i = 0; i < 16; i++)
+	        {
+	            W[i].high = 0;
+	            W[i].low = 0;
+	        }
+    	}
+
+		var processWord = function (data, dataOff) {
+			 W[wOff] = bigEndianToLong(data, dataOff);
+
+	        if (++wOff == 16)
+	        {
+	            processBlock();
+	        }
+		}
+
+    	var updateBuf = function (data) {
+    		xBuf[xBufOff++] = data;
+
+	        if (xBufOff == xBuf.length)
+	        {
+	            processWord(xBuf, 0);
+	            xBufOff = 0;
+	        }
+
+	        byteCount1.low++;
+    	}
+    	
+    	var update = function (data, dataOff, len) {
+    		while ((xBufOff != 0) && (len > 0))
+	        {
+	            updateBuf(data[dataOff]);
+
+	            dataOff++;
+	            len--;
+	        }
+
+	        //
+	        // process whole words.
+	        //
+	        while (len > xBuf.length)
+	        {
+	            processWord(data, dataOff);
+
+	            dataOff += xBuf.length;
+	            len -= xBuf.length;
+	            byteCount1.low += xBuf.length;
+	        }
+
+	        //
+	        // load data the remainder.
+	        //
+	        while (len > 0)
+	        {
+	            updateBuf(data[dataOff]);
+
+	            dataOff++;
+	            len--;
+	        }
+    	}
+
+    	var processLength = function (lowW, hiW) {
+    		if (wOff > 14)
+	        {
+	            processBlock();
+	        }
+
+	        W[14] = hiW;
+	        W[15] = lowW;
+    	}
+
+    	var finish = function () {
+    		adjustByteCounts();
+    		var  lowBitLength = byteCount1.leftShift(3);
+	        var  hiBitLength = byteCount2;
+
+	        //
+	        // add the pad bytes.
+	        //
+	        updateBuf(128);
+
+	        while (xBufOff != 0)
+	        {
+	            updateBuf(0);
+	        }
+
+	        processLength(lowBitLength, hiBitLength);
+
+	        processBlock();
+    	}
+
+    	var doFinal = function (out, outOff) {
+    		finish();
+    		longToBigEndian(H1, out, outOff);
+	        longToBigEndian(H2, out, outOff + 8);
+	        longToBigEndian(H3, out, outOff + 16);
+	        longToBigEndian(H4, out, outOff + 24);
+	        longToBigEndian(H5, out, outOff + 32);
+	        longToBigEndian(H6, out, outOff + 40);
+
+	        reset();
+
+	        return DIGEST_LENGTH;
+    	}	
+
+    	var final = function () {
+            var hash = new Array(DIGEST_LENGTH);
+            doFinal(hash, 0);
+            return hash;
+        }
+        
+        return {
+
+            digest: function (data) {
+                reset();
+                update(data, 0, data.length);
+                return final();
+            }
+
+        }
+
+	} ());
+} ());;
     
+    
+        (function () {
+	var KA = KeyouCryptography.algorithm;
+	var Long = KeyouCryptography.util.Long;
+
+	var SHA512 = KA.SHA512 = (function () {
+		var DIGEST_LENGTH = 64;
+
+		var BYTE_LENGTH = 128;
+
+    	var xBuf = new Array(8);
+
+    	var xBufOff;
+
+    	var byteCount;
+
+		var byteCount1, byteCount2;
+
+    	var H1, H2, H3, H4, H5, H6, H7, H8;
+
+    	var W = new Array(80); 
+
+    	var wOff;
+
+    	var KStr = [
+    		"0x428a2f98d728ae22", "0x7137449123ef65cd", "0xb5c0fbcfec4d3b2f", "0xe9b5dba58189dbbc",
+			"0x3956c25bf348b538", "0x59f111f1b605d019", "0x923f82a4af194f9b", "0xab1c5ed5da6d8118",
+			"0xd807aa98a3030242", "0x12835b0145706fbe", "0x243185be4ee4b28c", "0x550c7dc3d5ffb4e2",
+			"0x72be5d74f27b896f", "0x80deb1fe3b1696b1", "0x9bdc06a725c71235", "0xc19bf174cf692694",
+			"0xe49b69c19ef14ad2", "0xefbe4786384f25e3", "0x0fc19dc68b8cd5b5", "0x240ca1cc77ac9c65",
+			"0x2de92c6f592b0275", "0x4a7484aa6ea6e483", "0x5cb0a9dcbd41fbd4", "0x76f988da831153b5",
+			"0x983e5152ee66dfab", "0xa831c66d2db43210", "0xb00327c898fb213f", "0xbf597fc7beef0ee4",
+			"0xc6e00bf33da88fc2", "0xd5a79147930aa725", "0x06ca6351e003826f", "0x142929670a0e6e70",
+			"0x27b70a8546d22ffc", "0x2e1b21385c26c926", "0x4d2c6dfc5ac42aed", "0x53380d139d95b3df",
+			"0x650a73548baf63de", "0x766a0abb3c77b2a8", "0x81c2c92e47edaee6", "0x92722c851482353b",
+			"0xa2bfe8a14cf10364", "0xa81a664bbc423001", "0xc24b8b70d0f89791", "0xc76c51a30654be30",
+			"0xd192e819d6ef5218", "0xd69906245565a910", "0xf40e35855771202a", "0x106aa07032bbd1b8",
+			"0x19a4c116b8d2d0c8", "0x1e376c085141ab53", "0x2748774cdf8eeb99", "0x34b0bcb5e19b48a8",
+			"0x391c0cb3c5c95a63", "0x4ed8aa4ae3418acb", "0x5b9cca4f7763e373", "0x682e6ff3d6b2b8a3",
+			"0x748f82ee5defb2fc", "0x78a5636f43172f60", "0x84c87814a1f0ab72", "0x8cc702081a6439ec",
+			"0x90befffa23631e28", "0xa4506cebde82bde9", "0xbef9a3f7b2c67915", "0xc67178f2e372532b",
+			"0xca273eceea26619c", "0xd186b8c721c0c207", "0xeada7dd6cde0eb1e", "0xf57d4f7fee6ed178",
+			"0x06f067aa72176fba", "0x0a637dc5a2c898a6", "0x113f9804bef90dae", "0x1b710b35131c471b",
+			"0x28db77f523047d84", "0x32caab7b40c72493", "0x3c9ebe0a15c9bebc", "0x431d67c49c100d4c",
+			"0x4cc5d4becb3e42b6", "0x597f299cfc657e2a", "0x5fcb6fab3ad6faec", "0x6c44198c4a475817"];
+		var K = [];
+
+
+    	var Ch = function (x, y, z) {
+    		//return ((x & y) ^ ((~x) & z));
+    		return x.AND(y).XOR((x.Negate().AND(z)));
+    	} 
+
+    	var Maj = function (x, y, z) {
+    		//return ((x & y) ^ (x & z) ^ (y & z));
+    		return x.AND(y).XOR(x.AND(z), y.AND(z));
+    	}
+
+    	var Sum0 = function (x) {
+			//return ((x << 36)|(x >>> 28)) ^ ((x << 30)|(x >>> 34)) ^ ((x << 25)|(x >>> 39));
+    		return x.leftShift(36).OR(x.rightShift(28)).XOR(x.leftShift(30).OR(x.rightShift(34)), x.leftShift(25).OR(x.rightShift(39)));
+    	}
+
+    	var Sum1 = function (x) {
+			//return ((x << 50)|(x >>> 14)) ^ ((x << 46)|(x >>> 18)) ^ ((x << 23)|(x >>> 41));
+    		return x.leftShift(50).OR(x.rightShift(14)).XOR(x.leftShift(46).OR(x.rightShift(18)), x.leftShift(23).OR(x.rightShift(41)));
+    	}
+
+    	var Sigma0 = function (x) {
+    		//return ((x << 63)|(x >>> 1)) ^ ((x << 56)|(x >>> 8)) ^ (x >>> 7);
+    		return x.leftShift(63).OR(x.rightShift(1)).XOR(x.leftShift(56).OR(x.rightShift(8)), x.rightShift(7));
+    	}
+
+    	var Sigma1 = function (x) {
+    		//return ((x << 45)|(x >>> 19)) ^ ((x << 3)|(x >>> 61)) ^ (x >>> 6);
+    		return x.leftShift(45).OR(x.rightShift(19)).XOR(x.leftShift(3).OR(x.rightShift(61)), x.rightShift(6));
+    	}
+
+    	var bigEndianToInt = function (bs, off) {
+    		var n = (bs[  off] & 0xff) << 24;
+    		n |= (bs[++off] & 0xff) << 16;
+    		n |= (bs[++off] & 0xff) << 8;
+    		n |= (bs[++off] & 0xff);
+    		return n;
+    	}
+
+		var intToBigEndian = function (n, bs, off) { 
+    		bs[  off] = (n >>> 24) & 0xff;
+	        bs[++off] = (n >>> 16) & 0xff;
+	        bs[++off] = (n >>>  8) & 0xff;
+	        bs[++off] = (n       ) & 0xff;
+    	}
+
+    	var bigEndianToLong = function (bs, off) {
+    		var l = new Long(0, 0);
+    		l.high = bigEndianToInt(bs, off);
+    		l.low = bigEndianToInt(bs, off + 4);
+    		return l;
+    	}
+    	
+    	var longToBigEndian = function (n, bs, off) {
+    		intToBigEndian(n.high, bs, off);
+        	intToBigEndian(n.low, bs, off + 4);
+    	}
+
+    	var reset = function () {
+
+    		for(var i = 0 ; i < KStr.length; i++){
+    			K[i] = Long.getLongFromStr(KStr[i]);
+    		}
+
+    		xBufOff = 0;
+    		H1 = Long.getLongFromStr("0x6a09e667f3bcc908");
+	        H2 = Long.getLongFromStr("0xbb67ae8584caa73b");
+	        H3 = Long.getLongFromStr("0x3c6ef372fe94f82b");
+	        H4 = Long.getLongFromStr("0xa54ff53a5f1d36f1");
+	        H5 = Long.getLongFromStr("0x510e527fade682d1");
+	        H6 = Long.getLongFromStr("0x9b05688c2b3e6c1f");
+	        H7 = Long.getLongFromStr("0x1f83d9abfb41bd6b");
+	        H8 = Long.getLongFromStr("0x5be0cd19137e2179");
+
+
+	        //test start
+	        /*var t3 = H1.AND(H2);
+	        var t4 = H1.OR(H2);
+	        var t5 = H1.XOR(H2);
+	        var t6 = H1.leftShift(36);
+	        var t7 = H1.rightShift(40);
+	        var t8 = H5.Negate();
+	        var t9 = H1.add(H2);*/
+
+	        xBufOff = 0;
+	        for (var i = 0; i < xBuf.length; i++)
+	        {
+	            xBuf[i] = 0;
+	        }
+
+	        wOff = 0;
+	        for (var i = 0; i != W.length; i++)
+	        {
+	            W[i] = new Long(0, 0);
+	        }
+
+	        /*var l3 = Ch(H5, H6, H7);
+	        var l4 = Maj(H1, H2, H3);
+	        var l5 = Sum0(H1);
+	        var l6 = Sum1(H5);
+	        var l7 = Sigma0(H1);
+	        var l8 = Sigma1(H1);
+	        var l9 = H8.add(l6, l3, K[0], W[0]); //test end*/
+
+	        byteCount1 = new Long(0,0);
+	       	byteCount2 = new Long(0,0);
+    	}
+
+    	var adjustByteCounts = function () {
+    		if (byteCount1.high > 0x1fffffff)
+	        {
+	            byteCount2 = byteCount2.add(byteCount1.rightShift(61));
+	            var temp = new Long(0x1fffffff, 0xffffffff);
+	            byteCount1 = byteCount1.AND(temp);
+	        }
+    	}
+
+    	var processBlock = function () {
+    		adjustByteCounts();
+    		for (var t = 16; t <= 79; t++)
+	        {
+	            W[t] = Sigma1(W[t - 2]).add(W[t - 7], Sigma0(W[t - 15]), W[t - 16]);
+	        }
+
+
+	        //FOR test 
+	        var aa = Sigma1 (W[20]).add(W[15], Sigma0(W[7]), W[6]);
+
+
+	        //
+	        // set up working variables.
+	        //
+	        var     a = H1;
+	        var     b = H2;
+	        var     c = H3;
+	        var     d = H4;
+	        var     e = H5;
+	        var     f = H6;
+	        var     g = H7;
+	        var     h = H8;
+
+	        var t = 0;
+	        for(var i = 0; i < 10; i ++)
+	        {
+	          // t = 8 * i
+	          h = h.add(Sum1(e), Ch(e, f, g), K[t], W[t++]);
+	          d = d.add(h);
+	          h = h.add(Sum0(a), Maj(a, b, c));
+
+	          // t = 8 * i + 1
+	          g = g.add(Sum1(d), Ch(d, e, f), K[t], W[t++]);
+	          c = c.add(g);
+	          g = g.add(Sum0(h), Maj(h, a, b));
+
+	          // t = 8 * i + 2
+	          f = f.add(Sum1(c), Ch(c, d, e), K[t], W[t++]);
+	          b = b.add(f);
+	          f = f.add(Sum0(g), Maj(g, h, a));
+
+	          // t = 8 * i + 3
+	          e = e.add(Sum1(b), Ch(b, c, d), K[t], W[t++]);
+	          a = a.add(e);
+	          e = e.add(Sum0(f), Maj(f, g, h));
+
+	          // t = 8 * i + 4
+	          d = d.add(Sum1(a), Ch(a, b, c), K[t], W[t++]);
+	          h = h.add(d);
+	          d = d.add(Sum0(e), Maj(e, f, g));
+
+	          // t = 8 * i + 5
+	          c = c.add(Sum1(h), Ch(h, a, b), K[t], W[t++]);
+	          g = g.add(c);
+	          c = c.add(Sum0(d), Maj(d, e, f));
+
+	          // t = 8 * i + 6
+	          b = b.add(Sum1(g), Ch(g, h, a), K[t], W[t++]);
+	          f = f.add(b);
+	          b = b.add(Sum0(c), Maj(c, d, e));
+
+	          // t = 8 * i + 7
+	          a = a.add(Sum1(f), Ch(f, g, h), K[t], W[t++]);
+	          e = e.add(a);
+	          a = a.add(Sum0(b), Maj(b, c, d));
+	        }
+
+	        H1 = H1.add(a);
+	        H2 = H2.add(b);
+	        H3 = H3.add(c);
+	        H4 = H4.add(d);
+	        H5 = H5.add(e);
+	        H6 = H6.add(f);
+	        H7 = H7.add(g);
+	        H8 = H8.add(h);
+
+	        //
+	        // reset the offset and clean out the word buffer.
+	        //
+	        wOff = 0;
+	        for (var i = 0; i < 16; i++)
+	        {
+	            W[i].high = 0;
+	            W[i].low = 0;
+	        }
+    	}
+
+		var processWord = function (data, dataOff) {
+			 W[wOff] = bigEndianToLong(data, dataOff);
+
+	        if (++wOff == 16)
+	        {
+	            processBlock();
+	        }
+		}
+
+    	var updateBuf = function (data) {
+    		xBuf[xBufOff++] = data;
+
+	        if (xBufOff == xBuf.length)
+	        {
+	            processWord(xBuf, 0);
+	            xBufOff = 0;
+	        }
+
+	        byteCount1.low++;
+    	}
+    	
+    	var update = function (data, dataOff, len) {
+    		while ((xBufOff != 0) && (len > 0))
+	        {
+	            updateBuf(data[dataOff]);
+
+	            dataOff++;
+	            len--;
+	        }
+
+	        //
+	        // process whole words.
+	        //
+	        while (len > xBuf.length)
+	        {
+	            processWord(data, dataOff);
+
+	            dataOff += xBuf.length;
+	            len -= xBuf.length;
+	            byteCount1.low += xBuf.length;
+	        }
+
+	        //
+	        // load data the remainder.
+	        //
+	        while (len > 0)
+	        {
+	            updateBuf(data[dataOff]);
+
+	            dataOff++;
+	            len--;
+	        }
+    	}
+
+    	var processLength = function (lowW, hiW) {
+    		if (wOff > 14)
+	        {
+	            processBlock();
+	        }
+
+	        W[14] = hiW;
+	        W[15] = lowW;
+    	}
+
+    	var finish = function () {
+    		adjustByteCounts();
+    		var  lowBitLength = byteCount1.leftShift(3);
+	        var  hiBitLength = byteCount2;
+
+	        //
+	        // add the pad bytes.
+	        //
+	        updateBuf(128);
+
+	        while (xBufOff != 0)
+	        {
+	            updateBuf(0);
+	        }
+
+	        processLength(lowBitLength, hiBitLength);
+
+	        processBlock();
+    	}
+
+    	var doFinal = function (out, outOff) {
+    		finish();
+    		longToBigEndian(H1, out, outOff);
+	        longToBigEndian(H2, out, outOff + 8);
+	        longToBigEndian(H3, out, outOff + 16);
+	        longToBigEndian(H4, out, outOff + 24);
+	        longToBigEndian(H5, out, outOff + 32);
+	        longToBigEndian(H6, out, outOff + 40);
+			longToBigEndian(H7, out, outOff + 48);
+	        longToBigEndian(H8, out, outOff + 56);
+	        reset();
+
+	        return DIGEST_LENGTH;
+    	}	
+
+    	var final = function () {
+            var hash = new Array(DIGEST_LENGTH);
+            doFinal(hash, 0);
+            return hash;
+        }
+        
+        return {
+
+        	getAlgorithmName: function(){
+        		return "SHA-512";
+        	},
+
+        	getDigestSize: function(){
+        		return DIGEST_LENGTH;
+        	},
+
+            digest: function (data) {
+                reset();
+                update(data, 0, data.length);
+                return final();
+            }
+
+        }
+
+	} ());
+} ());;
+    
+    
+        (function () {
+    var K = KeyouCryptography;
+    var Hex = K.util.Hex;
+    var Helper = K.util.Helper;
+    var DataPadding = K.util.DataPadding;
+
+    var DigitalEnvelope = K.DigitalEnvelope = {
+
+        /**
+         * 数字信封加密数据
+         * @param  {Uint8Array} data      待加密的数据
+         * @param  {String} publicKey 16进制编码的公钥值
+         * @param  {Object} config    配置项：指定非对称算法，对称算法和填充方式
+         * @return {Object}           包括 KeyCipher: 16进制编码的密钥密文；MessageCipher: 16进制编码的数据密文
+         */
+        encrypt: function (data, publicKey, config) {
+            if (typeof config === undefined) {
+                config = {};
+            }
+            var asymmetricAlg = config.asymmetricAlg.name || K.AsymmetricAlg.RSA.name;
+            var symmetricAlg = config.symmetricAlg || K.SymmetricAlg.DES128;
+            var padMode = config.pad || K.Pad.padPKCS5;
+
+            var KA = K.algorithm;
+            var key = Helper.getRandom(symmetricAlg.size);
+            var keyCipher = KA[asymmetricAlg].encrypt(key, Hex.parse(publicKey));
+            var messageCipher = KA[symmetricAlg.name].encryptWithECB(DataPadding['encodeWith' + padMode](data, symmetricAlg.size), key);
+            return {
+                KeyCipher: Hex.stringify(keyCipher),
+                MessageCipher: Hex.stringify(messageCipher)
+            }
+        },
+
+        /**
+         * 解密数字信封
+         * @param  {Object} envelope   数字信封包括 KeyCipher 和 MessageCipher 两个属性
+         * @param  {String} privateKey 16进制编码的私钥值
+         * @param  {Object} config     配置项：指定非对称算法，对称算法和数据填充方式
+         * @return {String}            16进制编码的数据值
+         */
+        decrypt: function(envelope, privateKey, config) {
+            if (typeof config === undefined) {
+                config = {};
+            }
+            var asymmetricAlg = config.asymmetricAlg.name || K.AsymmetricAlg.RSA.name;
+            var symmetricAlg = config.symmetricAlg || K.SymmetricAlg.DES128;
+            var padMode = config.pad || K.Pad.padPKCS5;
+
+            var KA = K.algorithm;
+            var key = KA[asymmetricAlg].decrypt(Hex.parse(envelope.KeyCipher), Hex.parse(privateKey));
+            var message = KA[symmetricAlg.name].decryptWithECB(Hex.parse(envelope.MessageCipher), key);
+            return Hex.stringify(DataPadding['decodeWith' + padMode](message));
+        }
+    }      
+} ());
+
+; 
     
     
     return KeyouCryptography;

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Keyboard Demo</title>
+    <link rel="stylesheet" type="text/css" href="../build/keyboard.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximun-scale=1, user-scalable=no">
+</head>
+<body>
+    
+    <div>
+        <form>
+            <input class="test1 test2" type="text" id="tradePin" name="tradePin" value="" placeholder="your password">
+            <input class="test1 test2" type="text" id="loginPin" name="loginPin" value="" placeholder="your password">
+            <input type="button" name="confirm" id="confirm" value="提交">
+            <input type="button" onclick="uuid()" value="uuid">
+        </form>
+        <div>
+            <textarea id="logger" readonly="true" placeholder="回调信息" cols="70" rows="40">
+                
+            </textarea>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="../build/keyou-crypto-min.js"></script>
+    <script type="text/javascript">
+
+        var logger = document.getElementById('logger');
+
+        var numberKeyboard = new KeyouCryptography.Keyboard(6, true, false);
+        numberKeyboard.bind('tradePin', true);
+        numberKeyboard.onInput(function (event) {
+            logger.value = JSON.stringify(event, null, 8);
+        })
+
+        numberKeyboard.onDelete(function (event) {
+            logger.value = JSON.stringify(event, null, 8);
+        })        
+
+        numberKeyboard.onSure(function (event) {
+            var pk = "30818902818100CCE340A9F9C1760471E263CC505161993B7DD951DDEEDAB319BA73FC1BA3019553ED4238E7EC491E5779047011B62832CBE5331A61BE9133FA7FB5607300B18A26B76C813F8BC600F9F67055EAA23FEF4F07DE21CFDE8046D12FB0DA73B05BE82141E8D00F31FCC8884E71493275A2BBA5E35B1EEE73CF12935E3EC3406CF7F10203010001";
+            var ciphertext = numberKeyboard.getCipherWithRSA(pk, false);
+
+            logger.value = JSON.stringify(ciphertext, null, 8);
+        })
+
+
+
+        var allKeyboard = new KeyouCryptography.Keyboard(6, true, false);
+        allKeyboard.bind('loginPin', false);
+        allKeyboard.setRegex(/(^[0-9])+/);
+        allKeyboard.onInput(function (event) {
+            logger.value = JSON.stringify(event, null, 8);
+        })
+
+        allKeyboard.onDelete(function (event) {
+            logger.value = JSON.stringify(event, null, 8);
+        })        
+
+        allKeyboard.onSure(function (event) {
+            
+        })
+
+        allKeyboard.onShow(function (event) {
+            console.log('keyboard show');
+        })
+
+        allKeyboard.onHide(function (event) {
+            console.log('keyboard hide');
+        })
+
+        var confirm = document.getElementById('confirm');
+        var getPinCipher = function(event) {
+            var pk = "30818902818100CCE340A9F9C1760471E263CC505161993B7DD951DDEEDAB319BA73FC1BA3019553ED4238E7EC491E5779047011B62832CBE5331A61BE9133FA7FB5607300B18A26B76C813F8BC600F9F67055EAA23FEF4F07DE21CFDE8046D12FB0DA73B05BE82141E8D00F31FCC8884E71493275A2BBA5E35B1EEE73CF12935E3EC3406CF7F10203010001";
+            var ciphertext = allKeyboard.getCipherWithRSA(pk, false);
+            console.log("containNumber is :"+allKeyboard.containNumber());
+            console.log("containUpCaseLetter is :"+allKeyboard.containUpCaseLetter());
+            console.log("containLowCaseLetter is :"+allKeyboard.containLowCaseLetter());
+            console.log("containSymbol is :"+allKeyboard.containSymbol());
+            logger.value = JSON.stringify(ciphertext, null, 8);
+            console.log("regex : "+allKeyboard.match());
+        }
+        confirm.addEventListener('click', getPinCipher, false);
+
+        function uuid(){
+    		console.log( "uuid " + numberKeyboard.getUUID());
+    	}
+    </script>
+</body>
+</html>
