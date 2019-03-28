@@ -27,7 +27,7 @@
          
         var logger = document.getElementById('logger');
 
-        var numberKeyboard = new KeyouCryptography.Keyboard(6, false, false);
+        var numberKeyboard = new KeyouCryptography.Keyboard(6, true, false);
         numberKeyboard.bindWithClass('test3', true);
         numberKeyboard.onInput(function (event) {
             logger.value = JSON.stringify(event, null, 8);
