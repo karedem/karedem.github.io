@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <title>Keyboard Demo</title>
-    <link rel="stylesheet" type="text/css" href="js/keyboard.css">
+    <link rel="stylesheet" type="text/css" href="build/keyboard-gyh.css">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximun-scale=1, user-scalable=no">
 </head>
 <body>
     
     <div>
         <form>
-            <input class="test1 test2" type="text" id="tradePin" name="tradePin" value="" placeholder="your password">
-            <input class="test1 test2" type="text" id="loginPin" name="loginPin" value="" placeholder="your password">
+            <input class="test1 test2 test3" type="text" id="tradePin" name="tradePin" value="" placeholder="your password">
+            <input class="test1 test2 test4" type="text" id="loginPin" name="loginPin" value="" placeholder="your password">
             <input type="button" name="confirm" id="confirm" value="提交">
             <input type="button" onclick="uuid()" value="uuid">
         </form>
@@ -22,13 +22,13 @@
         </div>
     </div>
 
-    <script type="text/javascript" src="js/keyou-crypto-min-gyh.js"></script>
+    <script type="text/javascript" src="build/keyou-crypto-min-gyh.js"></script>
     <script type="text/javascript">
-
+         
         var logger = document.getElementById('logger');
 
-        var numberKeyboard = new KeyouCryptography.Keyboard(6, true, false);
-        numberKeyboard.bind('tradePin', true);
+        var numberKeyboard = new KeyouCryptography.Keyboard(6, false, false);
+        numberKeyboard.bindWithClass('test3', true);
         numberKeyboard.onInput(function (event) {
             logger.value = JSON.stringify(event, null, 8);
         })
@@ -46,8 +46,8 @@
 
 
 
-        var allKeyboard = new KeyouCryptography.Keyboard(6, true, false);
-        allKeyboard.bind('loginPin', false);
+        var allKeyboard = new KeyouCryptography.Keyboard(6, false, false);
+        allKeyboard.bindWithClass('test4', false);
         allKeyboard.setRegex(/(^[0-9])+/);
         allKeyboard.onInput(function (event) {
             logger.value = JSON.stringify(event, null, 8);
