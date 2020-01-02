@@ -1,0 +1,98 @@
+<html>
+<head>
+  <title>Bootstrap 实例</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">  
+  <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
+  <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  <script>
+    var clickDo = function(param){
+      alert(param);
+      Toaster.postMessage(param);
+      //这里是打开逻辑 判断当前是android iOS 小程序 带参执行不同的逻辑
+
+    }
+
+    var iKnow = function(){
+      alert('我知道了');
+      //
+    }
+
+    var goVote = function(){
+      alert('去投票');
+      //
+    }
+  </script>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row" style="text-align:center"><img src="http://apit.qtwo.fun/image/co/ce58c1488ed949e7addb96dfbe5f649b/650ed472e3ce482cb15dcb6f385fa624/77F15E7052367EFF5EAA3CA451E88928.png" style="max-width: 10%"></div>
+    <div class="row" style="text-align:center"><p>三只松鼠休闲零食网红孕妇儿童早餐面包蛋糕</p></div>
+    <div class="row" style="text-align:center"><p>扫码奖励</p></div>
+    <div class="row" style="text-align:center">
+      <div style="width: 48%;margin: 1%; background: #CCCCCC" class="column col-xs-6">
+        <div>
+          +123.00
+        </div>
+        <div>
+          D罐金额|元
+        </div>
+      </div>
+      <div style="width: 48%;margin: 1%; background: #CCCCCC" class="column col-xs-6">
+        <div>
+          123
+        </div>
+        <div>
+          扫码获权|票
+        </div>
+      </div>
+    </div>
+    <div class="row" style="text-align:center"><p>活动奖励</p></div>
+    <div class="container" style="height: 60%;margin-bottom: 3%; overflow: auto;">
+      <ul class="list-group">
+      <li class="list-group-item">
+        <div>
+           <p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="" onclick="javascript:clickDo(1)">详情</a>
+        </div>
+      </li>
+      <li class="list-group-item">
+        <div>
+           <p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="" onclick="javascript:clickDo(2)">详情</a>
+        </div>
+      </li>
+      <li class="list-group-item">
+        <p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="" onclick="javascript:clickDo(3)">详情</a>
+      </li>
+      <li class="list-group-item">
+        <p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="" onclick="javascript:clickDo(4)">详情</a>
+      </li>
+      <li class="list-group-item">
+        <p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="" onclick="javascript:clickDo(5)">详情</a>
+      </li>
+      <li class="list-group-item">
+        <p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="" onclick="javascript:clickDo(6)">详情</a>
+      </li>
+      <li class="list-group-item">
+        <p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="" onclick="javascript:clickDo(7)">详情</a>
+      </li>
+      <li class="list-group-item">
+        <p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="" onclick="javascript:clickDo(8)">详情</a>
+      </li>
+    </ul>
+    </div>
+
+    <div class="row" style="text-align:center">
+      <div style="width: 48%;margin: 1%; background: #CCCCCC" class="column col-xs-6">
+        <button onclick="iKnow()">我知道了</button>
+      </div>
+      <div style="width: 48%;margin: 1%; background: #CCCCCC" class="column col-xs-6">
+        <button onclick="goVote()">去投票</button>
+      </div>
+    </div>
+    
+    <div class="row" style="text-align:center"><p>@柯优兔</p></div>
+  </div>
+
+</body>
+</html>
