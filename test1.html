@@ -31,7 +31,7 @@
       Toaster.postMessage(param);
       }
       if ("undefined" != typeof wx) {
-        wx.miniProgram.postMessage({ data: '${param}'})
+        wx.miniProgram.postMessage({ data: `${param}`})
       }
       // if(wechatApp){
       //   //Sdk postMessage(xx)
