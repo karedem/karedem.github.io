@@ -7,10 +7,36 @@
   <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
   <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
   <script>
+    var initData = JSON.parse("
+      {'spuImage':'http://apit.qtwo.fun/image/co/ce58c1488ed949e7addb96dfbe5f649b/650ed472e3ce482cb15dcb6f385fa624/77F15E7052367EFF5EAA3CA451E88928.png', 
+      'spuName':'劳力士宇宙计型迪通拿系列116508',
+      'totalMoney':'1524.00',
+      'codeSeeds':'123'}");
+    var msgList = [];
+    ///tempId. 1. 公益捐赠提示。 2. 公益捐赠内容 3.免单权益  4.组合商品免单 5.重复扫码提示 6. 复购。 7. 临近保质期  8. 促销商品 9. 保真商品
+    msgList.add({'msgId':100, 'tempId':1});
+    msgList.add({'msgId':103, 'tempId':2, 'donate_money':'10', 'donate_people_total':'555', 'donate_money_total':'1003.96'});
+    msgList.add({'msgId':104, 'tempId':3, 'free_vote_date', '2019/12/31'});
+    msgList.add({'msgId':105, 'tempId':4, 'free_vote_date', '2019/12/31'});
+    msgList.add({'msgId':106, 'tempId':5, 'next_rescan_date', '2019/12/31', 'rescan_times':3, 'rescan_reward':1000, 
+      'next_rescan_reward':'2020/1/10'});
+    msgList.add({'msgId':107, 'tempId':6, 'rebuy_reward':10,
+      'rebuy_times':2, 'next_rebuy_date':'2020/1/4', 
+      'next_rebuy_reward':10});
+    msgList.add({'msgId':108, 'tempId':7, 'nld_reward':10});
+    msgList.add({'msgId':109, 'tempId':8, 'promote_reward':10});
+    msgList.add({'msgId':110, 'tempId':9, 'verify_reward':10});
     var clickDo = function(param){
       alert(param);
       if (Toaster != null) {
       Toaster.postMessage(param);
+      }
+      if(wechatApp){
+        //Sdk postMessage(xx)
+      }else if(){
+
+      }else if(){
+
       }
       //这里是打开逻辑 判断当前是android iOS 小程序 带参执行不同的逻辑
 
@@ -51,7 +77,7 @@
       </div>
     </div>
     <div class="row" style="text-align:center"><p>活动奖励</p></div>
-    <div class="container" style="height: 60%;margin-bottom: 3%; overflow: auto;">
+    <div class="container" style="height: 50%;margin-bottom: 3%; overflow: auto;">
       <ul class="list-group">
       <li class="list-group-item">
         <div>
