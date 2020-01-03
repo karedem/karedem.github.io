@@ -32,6 +32,7 @@
       }
       if ("undefined" != typeof wx) {
         wx.miniProgram.postMessage({ data: `${param}`})
+        wx.miniProgram.navigateBack();
       }
       // if(wechatApp){
       //   //Sdk postMessage(xx)
