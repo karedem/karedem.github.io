@@ -27,10 +27,10 @@
     // msgList.add({'msgId':110, 'tempId':9, 'verify_reward':10});
     var clickDo = function(param){
       alert(param);
-      if (Toaster != null) {
+      if ("undefined" != typeof Toaster) {
       Toaster.postMessage(param);
       }
-      if (wx != null) {
+      if ("undefined" != typeof wx) {
         wx.miniProgram.postMessage({ data: '${param}'})
       }
       // if(wechatApp){
