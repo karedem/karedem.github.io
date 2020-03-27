@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>router</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">  
+  <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
+  <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  <script>
+    var message_detail = function(url){
+      alert(url);
+      if ('undefined' != typeof Toaster) {
+      Toaster.postMessage(url);
+      }
+    }
+
+    var iKnow = function(){
+      alert('我知道了');
+      if ('undefined' != typeof Toaster) {
+      Toaster.postMessage('我知道了');
+      }
+    }
+
+    var goVote = function(){
+      alert('去投票');
+      if ('undefined' != typeof Toaster) {
+      Toaster.postMessage('去投票');
+      }
+    }
+    var backWay = function() {
+      // history.back();
+      history.go(-1); 
+    }   
+  </script>
+</head>
+<body>
+    <div class="container-fluid" id='showResult'>
+        <div id="content"> 
+        </div>
+    </div>
+    <script>
+        // 创建Router构造函数
+        // currentHash为当前hash值，routes为路径对象
+        function Router() {
+            this.currentHash = '/';
+            this.routes = {};
+        }
+
+        // 注册路径，每个路径对应一个回调函数。 
+        Router.prototype.route = function (path, callback) {
+            this.routes[path] = callback || function () {
+                alert('未定义回调函数！');
+            }
+        }
+
+        // 更新页面函数
+        Router.prototype.refresh = function () {
+            this.currentHash = location.hash.slice(1) || '/';
+            this.routes[this.currentHash]();
+        }
+
+        // 初始化
+        Router.prototype.init = function () {
+            var self = this;
+            window.addEventListener('load', function () {
+                self.refresh();
+            }, false);  
+
+            window.addEventListener('hashchange', function () {
+                self.refresh();
+            });
+        }
+    </script>
+
+    <script>
+        var getScanPage = function(){
+            return '<div class="row" style="text-align:center"><img src="https://dss1.bdstatic.com/5eN1bjq8AAUYm2zgoY3K/r/www/cache/static/protocol/https/home/img/qrcode/zbios_09b6296.png" style="max-width: 10%"></div><div class="row" style="text-align:center"><p>三只松鼠休闲零食网红孕妇儿童早餐面包蛋糕</p></div><div class="row" style="text-align:center"><p>扫码奖励</p></div><div class="row" style="text-align:center"><div style="width: 48%;margin: 1%; background: #CCCCCC" class="column col-xs-6"><div>+123.00</div><div>D罐金额|元</div></div><div style="width: 48%;margin: 1%; background: #CCCCCC" class="column col-xs-6"><div>123</div><div>扫码获权|票</div></div></div><div class="row" style="text-align:center"><p>活动奖励</p></div><div class="container" style="height: 50%;margin-bottom: 3%; overflow: auto;"><ul class="list-group"><li class="list-group-item"><div><p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="#/donate1" >详情</a></div></li><li class="list-group-item"><div><p>获得免单/折扣奖励资格，请于12月31日参与D块投票表决该奖励归属权。</p><a href="#/free1" >详情</a></div></li><li class="list-group-item"><div><p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="#/rescan" >详情</a></div></li><li class="list-group-item"><div><p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="#/donate1" >详情</a></div></li><li class="list-group-item"><div><p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="#/donate1" >详情</a></div></li><li class="list-group-item"><div><p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="#/donate1" >详情</a></div></li><li class="list-group-item"><div><p>该商品正在参加[公益项目]，查看详情可开启扫码默认捐赠。</p><a href="#/donate1" >详情</a></div></li></ul></div><div class="row" style="text-align:center"><div style="width: 48%;margin: 1%; background: #CCCCCC" class="column col-xs-6"><button onclick="iKnow()">我知道了</button></div><div style="width: 48%;margin: 1%; background: #CCCCCC" class="column col-xs-6"><button onclick="goVote()">去投票</button></div></div><div class="row" style="text-align:center"><p>@柯优兔</p></div>';
+        }
+
+        var getVotePage = function(){
+          return '<div class="container-fluid" style="padding-left:10%; padding-right:10%"><div class="row" style="padding-top:5%;padding-bottom: 5%;text-align:center"><img src="http://10.40.0.91:9080/images/%E6%89%AB%E7%A0%81%E6%8F%90%E7%A4%BA/u313.png" ></div><div class="row" style="padding-top:3%;text-align:left;"><p>关怀贫困母亲</p></div><div class="row" style="padding-top:3%;text-align:left"><p>公益组织：中国扶贫基金会</p></div><div class="row" style="padding-top:3%;text-align:left"><p>有效期：2019年12月18日 - 2019年12月18日</p></div><div class="row" style="padding-top:3%;text-align:left"><p>募集金额：200000 元</p></div><div class="row" style="padding-top:3%;text-align:left"><p>已募金额：15000 元</p></div><div class="row" style="padding-top:3%;text-align:left"><p>募捐人数：20040 人</p></div><div class="row" style="padding-top:3%;text-align:center"><div style="width: 48%;margin: 1%; background: #CCCCCC" class="column col-xs-6"><button onclick="backWay()">暂不参加</button></div><div style="width: 48%;margin: 1%; background: #CCCCCC" class="column col-xs-6"><button onclick="goVote()">我要参加</button></div></div><div class="row" style="text-align:center"><p>@柯优兔</p></div></div>';
+        }
+
+        var getFreePage = function(){
+          return '<div class="container-fluid" style="padding-left:10%; padding-right:10%"><div class="row" style="text-align:center"><img src="https://dss1.bdstatic.com/5eN1bjq8AAUYm2zgoY3K/r/www/cache/static/protocol/https/home/img/qrcode/zbios_09b6296.png" style="max-width: 10%"></div><div class="row" style="text-align:center"><p>三只松鼠休闲零食网红孕妇儿童早餐面包蛋糕</p></div><div class="row" style="padding-top:3%;text-align:center;"><p>免单/折扣奖励</p></div><div class="row" style="height:40%;padding-top:3%;text-align:center;border:1px solid #000;border-radius: 20px"><p>活动说明:</p><p>在12月1日至12月31日期间购买商品的消费者并参与12月31日的D块投票活动，共同表决免单/折扣奖励归属权。</p><p>主办方: xxx公司</p></div><div class="row" style="padding-top:3%;text-align:center"><div style="text-align:center"><button  class="btn btn-default" type="button" style="width:48%" onclick="backWay()">知道了</button></div></div><div class="row" style="text-align:center"><p>@柯优兔</p></div></div>';
+        }
+
+        var wrap = document.getElementById('showResult');
+        var content = document.getElementById('content');
+
+        window.Router = new Router();
+        Router.route('/', function () {
+            content.innerHTML =getScanPage();
+            wrap.style.backgroundColor = 'white';
+        });
+        Router.route('/donate1', function () {
+            content.innerHTML = getVotePage();
+        });
+
+        Router.route('/rescan', function () {
+            content.innerHTML = getVotePage();
+        });
+
+        Router.route('/free1', function () {
+            content.innerHTML = getFreePage();
+        });
+
+        Router.init();
+
+    </script>
+</body>
+</html>
