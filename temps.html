@@ -23,11 +23,11 @@
           url:'/pages/serveDetail/serveDetail?url='+url
         })
       }
-      if ('undefided' != typeof NativeHandle) {
+      if ('undefided' != typeof nativeHandle) {
         var param = {};
         param['page'] = 'webview';
         param['url'] = url;
-        NativeHandle.postMessage(JSON.stringify(param));
+        nativeHandle.postMessage(JSON.stringify(param));
       }
     }
     var iKnow = function(){
@@ -36,11 +36,11 @@
             url:'/pages/blankPage/blankPage?type=1'
           });
       }
-      if ('undefided' != typeof NativeHandle) {
+      if ('undefided' != typeof nativeHandle) {
         var param = {};
         param['page'] = '';
         param['url'] = '';
-        NativeHandle.postMessage(JSON.stringify(param));
+        nativeHandle.postMessage(JSON.stringify(param));
       }
     }
     var goVote = function(){
@@ -49,11 +49,11 @@
             url:'/pages/blankPage/blankPage?type=2'
           });
       }
-      if ('undefided' != typeof NativeHandle) {
+      if ('undefided' != typeof nativeHandle) {
         var param = {};
         param['page'] = 'vote';
         param['url'] = '';
-        NativeHandle.postMessage(JSON.stringify(param));
+        nativeHandle.postMessage(JSON.stringify(param));
       }
     }
   </script>
